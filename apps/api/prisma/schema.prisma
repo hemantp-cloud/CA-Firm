@@ -1,0 +1,406 @@
+// CA Firm Management System - Prisma Schema
+// Single tenant system with CA -> CLIENT -> USER hierarchy
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  CA      // Super admin - manages the firm
+  CLIENT  // Sub-agents/partners who bring customers
+  USER    // End customers
+}
+
+enum ServiceStatus {
+  PENDING
+  IN_PROGRESS
+  UNDER_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceType {
+  ITR_FILING
+  GST_REGISTRATION
+  GST_RETURN
+  TDS_RETURN
+  TDS_COMPLIANCE
+  ROC_FILING
+  AUDIT
+  BOOK_KEEPING
+  PAYROLL
+  CONSULTATION
+  OTHER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum DocumentType {
+  PAN_CARD
+  AADHAR_CARD
+  BANK_STATEMENT
+  FORM_16
+  FORM_26AS
+  GST_CERTIFICATE
+  INCORPORATION_CERTIFICATE
+  PARTNERSHIP_DEED
+  MOA_AOA
+  AUDIT_REPORT
+  BALANCE_SHEET
+  PROFIT_LOSS
+  TAX_RETURN
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  CHEQUE
+  UPI
+  NEFT
+  RTGS
+  CARD
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model Firm {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  address   String?
+  gstin     String?
+  pan       String?
+  website   String?
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  clients      Client[]
+  users        User[]
+  services     Service[]
+  documents    Document[]
+  invoices     Invoice[]
+  activityLogs ActivityLog[]
+  settings     Setting[]
+
+  @@map("firms")
+  @@index([email])
+}
+
+model Client {
+  id          String   @id @default(uuid())
+  firmId      String
+  name        String
+  email       String?  @unique
+  phone       String?
+  pan         String?
+  gstin       String?
+  address     String?
+  city        String?
+  state       String?
+  pincode     String?
+  commission  Decimal? @db.Decimal(5, 2) // Commission percentage
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  firm     Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  users    User[]   // Users (CLIENT role and USER role) managed by this client
+  services Service[]
+  invoices Invoice[]
+
+  @@map("clients")
+  @@index([firmId])
+  @@index([email])
+  @@index([isActive])
+}
+
+model User {
+  id        String   @id @default(uuid())
+  firmId    String
+  clientId  String?  // NULL for CA, set for CLIENT and USER roles
+  email     String
+  password  String?  // NULL for Google SSO users
+  name      String
+  phone     String?
+  role      Role
+  avatar    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLoginAt DateTime?
+
+  // Google SSO
+  googleId String? @unique
+
+  // Email verification
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+
+  // Password management
+  mustChangePassword      Boolean   @default(false)
+  passwordResetToken      String?
+  passwordResetExpiry     DateTime?
+
+  // 2FA Support
+  twoFactorEnabled Boolean   @default(false)
+  otpCode          String?
+  otpExpiry        DateTime?
+
+  // Account security
+  failedLoginAttempts Int      @default(0)
+  lockedUntil        DateTime?
+
+  // Relations
+  firm              Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client            Client?           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  services          Service[]         // Services belonging to this user (if USER role)
+  tasks             Task[]
+  documents         Document[]
+  invoices          Invoice[]
+  activityLogs      ActivityLog[]
+
+  @@unique([firmId, email])
+  @@map("users")
+  @@index([firmId])
+  @@index([clientId])
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([googleId])
+}
+
+model Service {
+  id          String        @id @default(uuid())
+  firmId      String
+  userId      String        // Service belongs to USER (end customer)
+  clientId    String?       // Optional: which CLIENT brought this user
+  title       String
+  description String?
+  type        ServiceType
+  status      ServiceStatus @default(PENDING)
+  dueDate     DateTime?
+  completedAt DateTime?
+  feeAmount   Decimal?      @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  firm        Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client      Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  tasks       Task[]
+  documents   Document[]
+  invoices    Invoice[]
+
+  @@map("services")
+  @@index([firmId])
+  @@index([userId])
+  @@index([clientId])
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Task {
+  id          String        @id @default(uuid())
+  serviceId   String
+  assignedToId String?      // User assigned to this task
+  title       String
+  description String?
+  status      ServiceStatus @default(PENDING) // Reuse ServiceStatus enum
+  priority    Int           @default(0) // 0=Low, 1=Medium, 2=High
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  assignedTo User?  @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@map("tasks")
+  @@index([serviceId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Document {
+  id          String       @id @default(uuid())
+  firmId      String
+  userId      String       // Document belongs to USER
+  serviceId   String?      // Optional: linked to a service
+  fileName    String
+  fileType    String       // MIME type
+  fileSize    BigInt       // Size in bytes
+  storagePath String       // Path to file in storage
+  documentType DocumentType?
+  description String?
+  version     Int          @default(1)
+  isApproved  Boolean      @default(false)
+  approvedAt  DateTime?
+  uploadedAt  DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  firm    Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@map("documents")
+  @@index([firmId])
+  @@index([userId])
+  @@index([serviceId])
+  @@index([documentType])
+  @@index([isApproved])
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  firmId        String
+  userId        String        // Invoice for USER (end customer)
+  clientId      String?       // Optional: which CLIENT brought this user
+  serviceId     String?       // Optional: linked to a service
+  invoiceNumber String        @unique
+  invoiceDate   DateTime
+  dueDate       DateTime
+  subtotal      Decimal       @db.Decimal(10, 2)
+  taxRate       Decimal       @db.Decimal(5, 2) @default(18.00) // GST rate
+  taxAmount     Decimal       @db.Decimal(10, 2)
+  discount      Decimal       @db.Decimal(10, 2) @default(0.00)
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  firm        Firm         @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client      Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  service     Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  items       InvoiceItem[]
+  payments    Payment[]
+
+  @@map("invoices")
+  @@index([firmId])
+  @@index([userId])
+  @@index([clientId])
+  @@index([invoiceNumber])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Decimal  @db.Decimal(10, 2) @default(1.00)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  taxRate     Decimal  @db.Decimal(5, 2) @default(18.00)
+  amount      Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+  @@index([invoiceId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  invoiceId     String
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentDate   DateTime
+  transactionRef String?      // UPI ref, cheque number, etc.
+  bankName      String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+  @@index([invoiceId])
+  @@index([paymentStatus])
+  @@index([paymentDate])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  firmId     String
+  userId     String?  // NULL for system actions
+  action     String   // CREATE, UPDATE, DELETE, LOGIN, etc.
+  entityType String   // User, Service, Invoice, etc.
+  entityId   String?
+  entityName String?
+  details    Json?    // Additional details as JSON
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  firm Firm  @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("activity_logs")
+  @@index([firmId])
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  firmId    String
+  key       String   // Setting key (e.g., "tax_rate", "invoice_prefix")
+  value     String   // Setting value (JSON string for complex values)
+  category  String?  // Group settings by category
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@unique([firmId, key])
+  @@map("settings")
+  @@index([firmId])
+  @@index([category])
+}

@@ -1,0 +1,27 @@
+import { z } from 'zod';
+import { DocumentType, PaymentMethod } from '@prisma/client';
+
+export const uploadDocumentSchema = z.object({
+  documentType: z.nativeEnum(DocumentType, {
+    errorMap: () => ({ message: 'Invalid document type' }),
+  }),
+  serviceId: z.string().uuid('Invalid service ID').optional(),
+  description: z.string().optional(),
+});
+
+export const recordPaymentSchema = z.object({
+  invoiceId: z.string().uuid('Invalid invoice ID'),
+  amount: z.number().positive('Amount must be positive'),
+  paymentMethod: z.nativeEnum(PaymentMethod, {
+    errorMap: () => ({ message: 'Invalid payment method' }),
+  }),
+});
+
+export const updateUserProfileSchema = z.object({
+  name: z.string().min(1, 'Name is required').optional(),
+  phone: z.string().optional(),
+  pan: z.string().optional(),
+  aadhar: z.string().optional(),
+  address: z.string().optional(),
+});
+

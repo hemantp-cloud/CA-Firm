@@ -1,0 +1,48 @@
+﻿# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files (SENSITIVE - Never push!)
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+apps/api/.env
+apps/web/.env.local
+
+# Build outputs
+.next/
+dist/
+build/
+out/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Uploads
+uploads/
+
+# Coverage
+coverage/
+
+# Misc
+*.tsbuildinfo
+.turbo/
+
+# Backup folder with sensitive files
+_backup/
+
+_backup/
