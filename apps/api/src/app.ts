@@ -9,9 +9,9 @@ import documentsRoutes from './modules/documents/documents.routes';
 import invoicesRoutes from './modules/invoices/invoices.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
 import activityRoutes from './modules/activity/activity.routes';
+import adminRoutes from './modules/admin/admin.routes';
 import caRoutes from './modules/ca/ca.routes';
-import clientPortalRoutes from './modules/client/client.routes';
-import userRoutes from './modules/user/user.routes';
+import clientRoutes from './modules/client/client.routes';
 
 // Configure environment variables
 dotenv.config();
@@ -45,8 +45,8 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/activity', activityRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/ca', caRoutes);
-app.use('/api/client', clientPortalRoutes);
-app.use('/api/user', userRoutes);
+app.use('/api/client', clientRoutes);
 
 export default app;

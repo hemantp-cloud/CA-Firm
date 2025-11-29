@@ -16,11 +16,11 @@ export async function getAllDocuments(userContext: {
   };
 
   // Role-based filtering
-  if (userContext.role === 'CLIENT') {
-    // CLIENT can see documents of their users
+  if (userContext.role === 'CA') {
+    // CA can see documents of their customers
     const whereUser: any = {
       firmId: userContext.firmId,
-      role: 'USER' as any,
+      role: 'CLIENT' as any,
     };
     if (userContext.clientId) {
       whereUser.clientId = userContext.clientId;
@@ -30,8 +30,8 @@ export async function getAllDocuments(userContext: {
       select: { id: true },
     });
     where.userId = { in: userIds.map((u) => u.id) };
-  } else if (userContext.role === 'USER') {
-    // USER can only see their own documents
+  } else if (userContext.role === 'CLIENT') {
+    // CLIENT can only see their own documents
     where.userId = userContext.id;
   }
 
@@ -88,10 +88,10 @@ export async function getDocumentById(
   };
 
   // Role-based filtering
-  if (userContext.role === 'CLIENT') {
+  if (userContext.role === 'CA') {
     const whereUser: any = {
       firmId: userContext.firmId,
-      role: 'USER' as any,
+      role: 'CLIENT' as any,
     };
     if (userContext.clientId) {
       whereUser.clientId = userContext.clientId;
@@ -101,7 +101,7 @@ export async function getDocumentById(
       select: { id: true },
     });
     where.userId = { in: userIds.map((u) => u.id) };
-  } else if (userContext.role === 'USER') {
+  } else if (userContext.role === 'CLIENT') {
     where.userId = userContext.id;
   }
 
@@ -147,13 +147,13 @@ export async function uploadDocument(
     description?: string;
   }
 ) {
-  // Determine userId - USER uploads for themselves, CA/CLIENT can specify
+  // Determine userId - CLIENT uploads for themselves, ADMIN/CA can specify
   let userId = userContext.id;
-  
-  if (userContext.role === 'CA' || userContext.role === 'CLIENT') {
-    // CA/CLIENT can upload for any user under their firm/client
+
+  if (userContext.role === 'ADMIN' || userContext.role === 'CA') {
+    // ADMIN/CA can upload for any customer under their firm/CA
     // For now, we'll use the uploader's userId
-    // In future, add userId to request body for CA/CLIENT
+    // In future, add userId to request body for ADMIN/CA
     userId = userContext.id;
   }
 

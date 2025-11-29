@@ -5,17 +5,13 @@ import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 import {
   LayoutDashboard,
-  Users,
   UserCircle,
   Briefcase,
   FileText,
   CreditCard,
-  BarChart3,
-  Activity,
-  Settings,
+  User,
   Search,
   LogOut,
-  User,
   Menu,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -30,18 +26,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Shield } from "lucide-react"
+import { Building2 } from "lucide-react"
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/ca/dashboard" },
-  { icon: Users, label: "Clients", href: "/ca/clients" },
-  { icon: UserCircle, label: "Users", href: "/ca/users" },
+  { icon: UserCircle, label: "Clients", href: "/ca/users" },
   { icon: Briefcase, label: "Services", href: "/ca/services" },
   { icon: FileText, label: "Documents", href: "/ca/documents" },
   { icon: CreditCard, label: "Invoices", href: "/ca/invoices" },
-  { icon: BarChart3, label: "Reports", href: "/ca/reports" },
-  { icon: Activity, label: "Activity Logs", href: "/ca/activity" },
-  { icon: Settings, label: "Settings", href: "/ca/settings" },
+  { icon: User, label: "Profile", href: "/ca/profile" },
 ]
 
 export default function CALayout({
@@ -83,11 +76,11 @@ export default function CALayout({
       <aside className="hidden lg:flex w-[280px] bg-[#1e293b] dark:bg-slate-900 flex-col fixed left-0 top-0 h-full">
         {/* Logo Section */}
         <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-700 dark:border-slate-700">
-          <div className="rounded-lg bg-blue-600 p-2">
-            <Shield className="h-5 w-5 text-white" />
+          <div className="rounded-lg bg-green-600 p-2">
+            <Building2 className="h-5 w-5 text-white" />
           </div>
           <span className="text-white dark:text-white font-semibold text-lg">
-            CA Firm Management
+            CA Portal
           </span>
         </div>
 
@@ -100,11 +93,10 @@ export default function CALayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${
-                  isActive
-                    ? "bg-blue-600 text-white"
-                    : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
-                }`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${isActive
+                  ? "bg-green-600 text-white"
+                  : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
+                  }`}
               >
                 <Icon className={`h-5 w-5 ${isActive ? "text-white" : "group-hover:text-white"}`} />
                 <span className="text-sm font-medium">{item.label}</span>
@@ -127,7 +119,7 @@ export default function CALayout({
                 {session?.user?.name || "CA User"}
               </p>
               <p className="text-slate-400 dark:text-slate-400 text-xs truncate">
-                {session?.user?.email || "ca@firm.com"}
+                {session?.user?.email || "ca@example.com"}
               </p>
             </div>
           </div>
@@ -153,8 +145,8 @@ export default function CALayout({
         <header className="flex lg:hidden bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3 items-center justify-between">
           <MobileSidebar navigation={navigationItems} />
           <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-blue-600 p-1.5">
-              <Shield className="h-4 w-4 text-white" />
+            <div className="rounded-lg bg-green-600 p-1.5">
+              <Building2 className="h-4 w-4 text-white" />
             </div>
             <span className="text-gray-900 dark:text-white font-semibold text-base">
               CA Portal
@@ -180,7 +172,7 @@ export default function CALayout({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center">
                     <span className="text-white text-xs font-semibold">
                       {getUserInitials(session?.user?.name)}
                     </span>
@@ -199,7 +191,7 @@ export default function CALayout({
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/ca/settings" className="cursor-pointer">
+                  <Link href="/ca/profile" className="cursor-pointer">
                     <User className="h-4 w-4 mr-2" />
                     Profile
                   </Link>

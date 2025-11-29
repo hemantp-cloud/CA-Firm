@@ -86,9 +86,9 @@ export async function getAllInvoices(userContext: {
   };
 
   // Role-based filtering
-  if (userContext.role === 'CLIENT') {
+  if (userContext.role === 'CA') {
     where.clientId = userContext.clientId;
-  } else if (userContext.role === 'USER') {
+  } else if (userContext.role === 'CLIENT') {
     where.userId = userContext.id;
   }
 
@@ -183,9 +183,9 @@ export async function getInvoiceById(
   };
 
   // Role-based filtering
-  if (userContext.role === 'CLIENT') {
+  if (userContext.role === 'CA') {
     where.clientId = userContext.clientId;
-  } else if (userContext.role === 'USER') {
+  } else if (userContext.role === 'CLIENT') {
     where.userId = userContext.id;
   }
 
@@ -232,7 +232,7 @@ export async function getInvoiceById(
 }
 
 /**
- * Create invoice (CA only)
+ * Create invoice (ADMIN only)
  */
 export async function createInvoice(
   firmId: string,
@@ -303,7 +303,7 @@ export async function createInvoice(
 }
 
 /**
- * Update invoice (CA only)
+ * Update invoice (ADMIN only)
  */
 export async function updateInvoice(
   id: string,

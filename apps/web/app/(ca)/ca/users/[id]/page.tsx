@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, UserCircle, Mail, Phone, Shield, Briefcase } from "lucide-react"
+import { ArrowLeft, Edit, Trash2, UserCircle, Mail, Phone, Briefcase } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -22,14 +22,10 @@ interface User {
   name: string
   email: string
   phone: string | null
-  role: string
-  clientId: string | null
-  clientName: string | null
   pan: string | null
   aadhar: string | null
   address: string | null
   isActive: boolean
-  twoFactorEnabled: boolean
   lastLoginAt: string | null
   createdAt: string
   services: Array<{
@@ -184,21 +180,6 @@ export default function UserDetailsPage() {
               </div>
             )}
 
-            <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Role</p>
-                <Badge className="mt-1">{user.role}</Badge>
-              </div>
-            </div>
-
-            {user.clientName && (
-              <div className="flex items-start gap-3">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Client</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.clientName}</p>
-              </div>
-            )}
-
             {user.pan && (
               <div className="flex items-start gap-3">
                 <p className="text-sm text-gray-500 dark:text-gray-400">PAN</p>
@@ -234,19 +215,6 @@ export default function UserDetailsPage() {
             </div>
 
             <div className="flex items-start gap-3">
-              <p className="text-sm text-gray-500 dark:text-gray-400">2FA</p>
-              <Badge
-                className={
-                  user.twoFactorEnabled
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                }
-              >
-                {user.twoFactorEnabled ? "Enabled" : "Disabled"}
-              </Badge>
-            </div>
-
-            <div className="flex items-start gap-3">
               <p className="text-sm text-gray-500 dark:text-gray-400">Last Login</p>
               <p className="font-medium text-gray-900 dark:text-white">
                 {formatDate(user.lastLoginAt)}
@@ -257,65 +225,52 @@ export default function UserDetailsPage() {
       </Card>
 
       {/* Services List */}
-      {user.role === "USER" && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Services ({user.services.length})
-              </h2>
-              <Button asChild size="sm">
-                <Link href={`/ca/services/new?userId=${user.id}`}>
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Add Service
-                </Link>
-              </Button>
+      <Card>
+        <CardHeader>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Services ({user.services.length})
+          </h2>
+        </CardHeader>
+        <CardContent>
+          {user.services.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+              <p>No services found for this user</p>
             </div>
-          </CardHeader>
-          <CardContent>
-            {user.services.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                <p>No services found for this user</p>
-                <Button asChild variant="outline" size="sm" className="mt-4">
-                  <Link href={`/ca/services/new?userId=${user.id}`}>Add First Service</Link>
-                </Button>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {user.services.map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="font-medium">{service.title}</TableCell>
+                    <TableCell>{formatStatus(service.type)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{formatStatus(service.status)}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {service.dueDate ? formatDate(service.dueDate) : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/ca/services/${service.id}`}>View</Link>
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {user.services.map((service) => (
-                    <TableRow key={service.id}>
-                      <TableCell className="font-medium">{service.title}</TableCell>
-                      <TableCell>{formatStatus(service.type)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{formatStatus(service.status)}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {service.dueDate ? formatDate(service.dueDate) : "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/ca/services/${service.id}`}>View</Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

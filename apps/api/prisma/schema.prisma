@@ -15,9 +15,9 @@ datasource db {
 // ============================================
 
 enum Role {
-  CA      // Super admin - manages the firm
-  CLIENT  // Sub-agents/partners who bring customers
-  USER    // End customers
+  ADMIN   // Super admin - manages the firm
+  CA      // Chartered Accountants/Partners who bring customers
+  CLIENT  // End customers
 }
 
 enum ServiceStatus {
@@ -152,6 +152,9 @@ model User {
   password  String?  // NULL for Google SSO users
   name      String
   phone     String?
+  pan       String?  // PAN card number
+  aadhar    String?  // Aadhar card number
+  address   String?  // Full address
   role      Role
   avatar    String?
   isActive  Boolean  @default(true)

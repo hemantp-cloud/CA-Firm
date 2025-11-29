@@ -1,25 +1,23 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import {
-  getDashboardStats,
-  getAllClients,
-  getClientById,
-  createClient,
-  updateClient,
-  deleteClient,
-  reactivateClient,
-  getAllUsers,
-  getUserById,
-  createUser,
-  updateUser,
-  deleteUser,
+  getCaDashboard,
+  getCaCustomers,
+  getCaCustomerById,
+  createCaCustomer,
+  updateCaCustomer,
+  deleteCaCustomer,
+  getCaServices,
+  getCaDocuments,
+  getCaInvoices,
+  getCaProfile,
+  updateCaProfile,
 } from './ca.service';
 import {
-  createClientSchema,
-  updateClientSchema,
-  createUserSchema,
-  updateUserSchema,
+  createCaCustomerSchema,
+  updateCaCustomerSchema,
+  updateCaProfileSchema,
 } from './ca.validation';
-import { authenticate, requireCA } from '../../shared/middleware/auth.middleware';
+import { authenticate, requireCA, AuthenticatedRequest } from '../../shared/middleware/auth.middleware';
 
 const router = Router();
 
@@ -27,19 +25,29 @@ const router = Router();
 router.use(authenticate);
 router.use(requireCA);
 
+// Helper to get clientId from authenticated user
+const getClientId = (req: AuthenticatedRequest): string => {
+  const clientId = req.user?.clientId;
+  if (!clientId) {
+    throw new Error('Client ID not found in token');
+  }
+  return clientId;
+};
+
 // Helper to get firmId from authenticated user
-const getFirmId = (req: any): string => {
+const getFirmId = (req: AuthenticatedRequest): string => {
   return req.user?.firmId || '';
 };
 
 /**
  * GET /api/ca/dashboard
- * Get dashboard statistics
+ * Get dashboard statistics for CA
  */
-router.get('/dashboard', async (req: Request, res: Response): Promise<void> => {
+router.get('/dashboard', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    const clientId = getClientId(req);
     const firmId = getFirmId(req);
-    const stats = await getDashboardStats(firmId);
+    const stats = await getCaDashboard(clientId, firmId);
 
     res.status(200).json({
       success: true,
@@ -55,233 +63,14 @@ router.get('/dashboard', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
- * GET /api/ca/clients
- * Get all clients
- */
-router.get('/clients', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const firmId = getFirmId(req);
-    const clients = await getAllClients(firmId);
-
-    res.status(200).json({
-      success: true,
-      data: clients,
-    });
-  } catch (error) {
-    console.error('Get clients error:', error);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to fetch clients',
-    });
-  }
-});
-
-/**
- * POST /api/ca/clients
- * Create new client (also creates CLIENT user)
- */
-router.post('/clients', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const validationResult = createClientSchema.safeParse(req.body);
-
-    if (!validationResult.success) {
-      res.status(400).json({
-        success: false,
-        message: 'Validation error',
-        errors: validationResult.error.errors,
-      });
-      return;
-    }
-
-    const firmId = getFirmId(req);
-    const client = await createClient(firmId, validationResult.data);
-
-    res.status(201).json({
-      success: true,
-      data: client,
-      message: 'Client created successfully. Welcome email sent.',
-    });
-  } catch (error: any) {
-    console.error('Create client error:', error);
-
-    // Handle duplicate email error
-    if (error.code === 'P2002' || error.message?.includes('email') || error.message?.includes('Email')) {
-      // Check if it's our custom inactive client error
-      if (error.code === 'INACTIVE_CLIENT_EXISTS') {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-          code: error.code,
-          existingClientId: error.existingClientId,
-        });
-        return;
-      }
-
-      res.status(400).json({
-        success: false,
-        message: 'Email already exists',
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to create client',
-    });
-  }
-});
-
-/**
- * GET /api/ca/clients/:id
- * Get client by ID with users
- */
-router.get('/clients/:id', async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.params.id) {
-      res.status(400).json({
-        success: false,
-        message: 'Client ID is required',
-      });
-      return;
-    }
-    const firmId = getFirmId(req);
-    const client = await getClientById(req.params.id, firmId);
-
-    res.status(200).json({
-      success: true,
-      data: client,
-    });
-  } catch (error) {
-    console.error('Get client error:', error);
-    res.status(404).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Client not found',
-    });
-  }
-});
-
-/**
- * PUT /api/ca/clients/:id
- * Update client
- */
-router.put('/clients/:id', async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.params.id) {
-      res.status(400).json({
-        success: false,
-        message: 'Client ID is required',
-      });
-      return;
-    }
-    const validationResult = updateClientSchema.safeParse(req.body);
-
-    if (!validationResult.success) {
-      res.status(400).json({
-        success: false,
-        message: 'Validation error',
-        errors: validationResult.error.errors,
-      });
-      return;
-    }
-
-    const firmId = getFirmId(req);
-    const client = await updateClient(req.params.id, firmId, validationResult.data);
-
-    res.status(200).json({
-      success: true,
-      data: client,
-      message: 'Client updated successfully',
-    });
-  } catch (error) {
-    console.error('Update client error:', error);
-    res.status(404).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to update client',
-    });
-  }
-});
-
-/**
- * DELETE /api/ca/clients/:id
- * Delete client (soft delete)
- */
-router.delete('/clients/:id', async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.params.id) {
-      res.status(400).json({
-        success: false,
-        message: 'Client ID is required',
-      });
-      return;
-    }
-    const firmId = getFirmId(req);
-    await deleteClient(req.params.id, firmId);
-
-    res.status(200).json({
-      success: true,
-      message: 'Client deactivated successfully',
-    });
-  } catch (error) {
-    console.error('Delete client error:', error);
-    res.status(404).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to delete client',
-    });
-  }
-});
-
-/**
- * POST /api/ca/clients/:id/reactivate
- * Reactivate client
- */
-router.post('/clients/:id/reactivate', async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.params.id) {
-      res.status(400).json({
-        success: false,
-        message: 'Client ID is required',
-      });
-      return;
-    }
-    const firmId = getFirmId(req);
-    const client = await reactivateClient(req.params.id, firmId);
-
-    res.status(200).json({
-      success: true,
-      data: client,
-      message: 'Client reactivated successfully',
-    });
-  } catch (error) {
-    console.error('Reactivate client error:', error);
-    res.status(404).json({
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to reactivate client',
-    });
-  }
-});
-
-/**
  * GET /api/ca/users
- * Get all users with filters
+ * Get all users for this CA
  */
-router.get('/users', async (req: Request, res: Response): Promise<void> => {
+router.get('/users', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    const clientId = getClientId(req);
     const firmId = getFirmId(req);
-    const filters: any = {};
-
-    if (req.query.role) {
-      filters.role = req.query.role as string;
-    }
-
-    if (req.query.clientId) {
-      filters.clientId = req.query.clientId as string;
-    }
-
-    if (req.query.isActive !== undefined) {
-      filters.isActive = req.query.isActive === 'true';
-    }
-
-    const users = await getAllUsers(firmId, filters);
+    const users = await getCaCustomers(clientId, firmId);
 
     res.status(200).json({
       success: true,
@@ -298,11 +87,11 @@ router.get('/users', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * POST /api/ca/users
- * Create new user
+ * Create new user under this CA
  */
-router.post('/users', async (req: Request, res: Response): Promise<void> => {
+router.post('/users', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const validationResult = createUserSchema.safeParse(req.body);
+    const validationResult = createCaCustomerSchema.safeParse(req.body);
 
     if (!validationResult.success) {
       res.status(400).json({
@@ -313,8 +102,9 @@ router.post('/users', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const clientId = getClientId(req);
     const firmId = getFirmId(req);
-    const user = await createUser(firmId, validationResult.data);
+    const user = await createCaCustomer(clientId, firmId, validationResult.data);
 
     res.status(201).json({
       success: true,
@@ -324,7 +114,6 @@ router.post('/users', async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     console.error('Create user error:', error);
 
-    // Handle duplicate email error
     if (error.code === 'P2002' || error.message?.includes('email') || error.message?.includes('Email')) {
       res.status(400).json({
         success: false,
@@ -342,9 +131,9 @@ router.post('/users', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /api/ca/users/:id
- * Get user by ID with services
+ * Get user by ID (must belong to this CA)
  */
-router.get('/users/:id', async (req: Request, res: Response): Promise<void> => {
+router.get('/users/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.params.id) {
       res.status(400).json({
@@ -353,8 +142,9 @@ router.get('/users/:id', async (req: Request, res: Response): Promise<void> => {
       });
       return;
     }
+    const clientId = getClientId(req);
     const firmId = getFirmId(req);
-    const user = await getUserById(req.params.id, firmId);
+    const user = await getCaCustomerById(req.params.id, clientId, firmId);
 
     res.status(200).json({
       success: true,
@@ -371,9 +161,9 @@ router.get('/users/:id', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * PUT /api/ca/users/:id
- * Update user
+ * Update user (must belong to this CA)
  */
-router.put('/users/:id', async (req: Request, res: Response): Promise<void> => {
+router.put('/users/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.params.id) {
       res.status(400).json({
@@ -382,7 +172,7 @@ router.put('/users/:id', async (req: Request, res: Response): Promise<void> => {
       });
       return;
     }
-    const validationResult = updateUserSchema.safeParse(req.body);
+    const validationResult = updateCaCustomerSchema.safeParse(req.body);
 
     if (!validationResult.success) {
       res.status(400).json({
@@ -393,8 +183,9 @@ router.put('/users/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const clientId = getClientId(req);
     const firmId = getFirmId(req);
-    const user = await updateUser(req.params.id, firmId, validationResult.data);
+    const user = await updateCaCustomer(req.params.id, clientId, firmId, validationResult.data);
 
     res.status(200).json({
       success: true,
@@ -412,9 +203,9 @@ router.put('/users/:id', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * DELETE /api/ca/users/:id
- * Delete user (soft delete)
+ * Delete user (soft delete - must belong to this CA)
  */
-router.delete('/users/:id', async (req: Request, res: Response): Promise<void> => {
+router.delete('/users/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.params.id) {
       res.status(400).json({
@@ -423,8 +214,9 @@ router.delete('/users/:id', async (req: Request, res: Response): Promise<void> =
       });
       return;
     }
+    const clientId = getClientId(req);
     const firmId = getFirmId(req);
-    await deleteUser(req.params.id, firmId);
+    await deleteCaCustomer(req.params.id, clientId, firmId);
 
     res.status(200).json({
       success: true,
@@ -435,6 +227,143 @@ router.delete('/users/:id', async (req: Request, res: Response): Promise<void> =
     res.status(404).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to delete user',
+    });
+  }
+});
+
+/**
+ * GET /api/ca/services
+ * Get services for CA's users
+ */
+router.get('/services', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const filters: any = {};
+
+    if (req.query.status) {
+      filters.status = req.query.status;
+    }
+
+    if (req.query.userId) {
+      filters.userId = req.query.userId as string;
+    }
+
+    const services = await getCaServices(clientId, firmId, filters);
+
+    res.status(200).json({
+      success: true,
+      data: services,
+    });
+  } catch (error) {
+    console.error('Get services error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch services',
+    });
+  }
+});
+
+/**
+ * GET /api/ca/documents
+ * Get documents for CA's users
+ */
+router.get('/documents', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const documents = await getCaDocuments(clientId, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: documents,
+    });
+  } catch (error) {
+    console.error('Get documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch documents',
+    });
+  }
+});
+
+/**
+ * GET /api/ca/invoices
+ * Get invoices for CA's users
+ */
+router.get('/invoices', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const invoices = await getCaInvoices(clientId, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: invoices,
+    });
+  } catch (error) {
+    console.error('Get invoices error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch invoices',
+    });
+  }
+});
+
+/**
+ * GET /api/ca/profile
+ * Get CA's own profile
+ */
+router.get('/profile', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const profile = await getCaProfile(clientId, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: profile,
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Profile not found',
+    });
+  }
+});
+
+/**
+ * PUT /api/ca/profile
+ * Update CA's own profile
+ */
+router.put('/profile', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const validationResult = updateCaProfileSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const profile = await updateCaProfile(clientId, firmId, validationResult.data);
+
+    res.status(200).json({
+      success: true,
+      data: profile,
+      message: 'Profile updated successfully',
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update profile',
     });
   }
 });

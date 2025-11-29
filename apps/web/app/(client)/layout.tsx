@@ -5,14 +5,12 @@ import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 import {
   LayoutDashboard,
-  UserCircle,
   Briefcase,
   FileText,
   CreditCard,
   User,
   Search,
   LogOut,
-  Menu,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -26,14 +24,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Building2 } from "lucide-react"
+import { UserCircle } from "lucide-react"
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/client/dashboard" },
-  { icon: UserCircle, label: "Users", href: "/client/users" },
-  { icon: Briefcase, label: "Services", href: "/client/services" },
-  { icon: FileText, label: "Documents", href: "/client/documents" },
-  { icon: CreditCard, label: "Invoices", href: "/client/invoices" },
+  { icon: Briefcase, label: "My Services", href: "/client/services" },
+  { icon: FileText, label: "My Documents", href: "/client/documents" },
+  { icon: CreditCard, label: "My Invoices", href: "/client/invoices" },
   { icon: User, label: "Profile", href: "/client/profile" },
 ]
 
@@ -76,8 +73,8 @@ export default function ClientLayout({
       <aside className="hidden lg:flex w-[280px] bg-[#1e293b] dark:bg-slate-900 flex-col fixed left-0 top-0 h-full">
         {/* Logo Section */}
         <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-700 dark:border-slate-700">
-          <div className="rounded-lg bg-green-600 p-2">
-            <Building2 className="h-5 w-5 text-white" />
+          <div className="rounded-lg bg-purple-600 p-2">
+            <UserCircle className="h-5 w-5 text-white" />
           </div>
           <span className="text-white dark:text-white font-semibold text-lg">
             Client Portal
@@ -93,11 +90,10 @@ export default function ClientLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${
-                  isActive
-                    ? "bg-green-600 text-white"
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${isActive
+                    ? "bg-purple-600 text-white"
                     : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
-                }`}
+                  }`}
               >
                 <Icon className={`h-5 w-5 ${isActive ? "text-white" : "group-hover:text-white"}`} />
                 <span className="text-sm font-medium">{item.label}</span>
@@ -146,8 +142,8 @@ export default function ClientLayout({
         <header className="flex lg:hidden bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3 items-center justify-between">
           <MobileSidebar navigation={navigationItems} />
           <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-green-600 p-1.5">
-              <Building2 className="h-4 w-4 text-white" />
+            <div className="rounded-lg bg-purple-600 p-1.5">
+              <UserCircle className="h-4 w-4 text-white" />
             </div>
             <span className="text-gray-900 dark:text-white font-semibold text-base">
               Client Portal
@@ -173,7 +169,7 @@ export default function ClientLayout({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-full bg-purple-600 flex items-center justify-center">
                     <span className="text-white text-xs font-semibold">
                       {getUserInitials(session?.user?.name)}
                     </span>

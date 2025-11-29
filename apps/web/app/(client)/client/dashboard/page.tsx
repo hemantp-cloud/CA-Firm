@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { UserCircle, Briefcase, Clock, CreditCard, Plus, Eye } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { Briefcase, FileText, CreditCard, Upload, ArrowRight, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,29 +10,33 @@ import Link from "next/link"
 import api from "@/lib/api"
 
 interface DashboardData {
-  userCount: number
   activeServicesCount: number
-  pendingServicesCount: number
   pendingInvoicesCount: number
-  recentUsers: Array<{
-    id: string
-    name: string
-    email: string
-    servicesCount: number
-    isActive: boolean
-  }>
-  recentServices: Array<{
+  activeServices: Array<{
     id: string
     title: string
     status: string
-    user: {
-      name: string
-    }
+    type: string
     dueDate: string | null
+  }>
+  recentDocuments: Array<{
+    id: string
+    fileName: string
+    documentType: string | null
+    uploadedAt: string
+    isFromCA: boolean
+  }>
+  pendingInvoices: Array<{
+    id: string
+    invoiceNumber: string
+    invoiceDate: string
+    totalAmount: number
+    status: string
   }>
 }
 
 export default function ClientDashboardPage() {
+  const { data: session } = useSession()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -63,6 +68,10 @@ export default function ClientDashboardPage() {
     })
   }
 
+  const formatCurrency = (amount: number) => {
+    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+  }
+
   const formatStatus = (status: string) => {
     return status
       .split("_")
@@ -76,57 +85,44 @@ export default function ClientDashboardPage() {
       IN_PROGRESS: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
       UNDER_REVIEW: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
       COMPLETED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-      CANCELLED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
     }
     return colors[status] || colors.PENDING
   }
 
+  const getProgress = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return 0
+      case "IN_PROGRESS":
+        return 50
+      case "UNDER_REVIEW":
+        return 75
+      case "COMPLETED":
+        return 100
+      default:
+        return 0
+    }
+  }
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Overview of your users and their services
-          </p>
-        </div>
-        <Button asChild className="bg-green-600 hover:bg-green-700">
-          <Link href="/client/users/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Add User
-          </Link>
-        </Button>
+      {/* Welcome Section */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          Welcome back, {session?.user?.name || "User"}!
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          Here's an overview of your services and documents
+        </p>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Users */}
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <UserCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Total Users
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isLoading ? "..." : dashboardData?.userCount || 0}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your customers</p>
-          </CardContent>
-        </Card>
-
-        {/* Active Services */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Briefcase className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                <Briefcase className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Active Services
@@ -141,29 +137,6 @@ export default function ClientDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Pending Services */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Pending Services
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isLoading ? "..." : dashboardData?.pendingServicesCount || 0}
-            </div>
-            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-              Requires attention
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Pending Invoices */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div className="flex items-center gap-2">
@@ -184,125 +157,190 @@ export default function ClientDashboardPage() {
         </Card>
       </div>
 
-      {/* Recent Users and Services */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Users */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Recent Users
-              </h2>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/client/users">View All</Link>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading users...</div>
-            ) : dashboardData?.recentUsers && dashboardData.recentUsers.length > 0 ? (
-              <div className="space-y-3">
-                {dashboardData.recentUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
+      {/* Active Services */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Active Services
+            </h2>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/client/services">
+                View All <ArrowRight className="h-4 w-4 ml-2" />
+              </Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8 text-gray-500">Loading services...</div>
+          ) : dashboardData?.activeServices && dashboardData.activeServices.length > 0 ? (
+            <div className="space-y-4">
+              {dashboardData.activeServices.map((service) => (
+                <div
+                  key={service.id}
+                  className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{user.name}</p>
-                        <Badge
-                          className={
-                            user.isActive
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                          }
-                        >
-                          {user.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        {user.servicesCount} service{user.servicesCount !== 1 ? "s" : ""}
+                      <h3 className="font-medium text-gray-900 dark:text-white">{service.title}</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {formatStatus(service.type)}
                       </p>
                     </div>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/client/users/${user.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
+                    <Badge className={getStatusColor(service.status)}>
+                      {formatStatus(service.status)}
+                    </Badge>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <UserCircle className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                <p>No users yet</p>
-                <Button asChild variant="outline" size="sm" className="mt-4">
-                  <Link href="/client/users/new">Add Your First User</Link>
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600 dark:text-gray-400">Progress</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {getProgress(service.status)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-purple-600 transition-all"
+                        style={{ width: `${getProgress(service.status)}%` }}
+                      />
+                    </div>
+                    {service.dueDate && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Due: {formatDate(service.dueDate)}
+                      </p>
+                    )}
+                  </div>
+                  <Button variant="ghost" size="sm" className="mt-3" asChild>
+                    <Link href={`/client/services/${service.id}`}>
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+              <p>No active services</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Recent Services */}
+      {/* Recent Documents */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Recent Documents
+            </h2>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/client/documents">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/client/documents">
+                  View All <ArrowRight className="h-4 w-4 ml-2" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8 text-gray-500">Loading documents...</div>
+          ) : dashboardData?.recentDocuments && dashboardData.recentDocuments.length > 0 ? (
+            <div className="space-y-3">
+              {dashboardData.recentDocuments.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-5 w-5 text-gray-400" />
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">{doc.fileName}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {doc.documentType && (
+                          <Badge variant="outline" className="text-xs">
+                            {doc.documentType}
+                          </Badge>
+                        )}
+                        {doc.isFromCA && (
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">
+                            From CA
+                          </Badge>
+                        )}
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatDate(doc.uploadedAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+              <p>No documents yet</p>
+              <Button asChild variant="outline" size="sm" className="mt-4">
+                <Link href="/client/documents">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Your First Document
+                </Link>
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pending Invoices */}
+      {dashboardData?.pendingInvoices && dashboardData.pendingInvoices.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Recent Services
+                Pending Invoices
               </h2>
               <Button variant="outline" size="sm" asChild>
-                <Link href="/client/services">View All</Link>
+                <Link href="/client/invoices">
+                  View All <ArrowRight className="h-4 w-4 ml-2" />
+                </Link>
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading services...</div>
-            ) : dashboardData?.recentServices && dashboardData.recentServices.length > 0 ? (
-              <div className="space-y-3">
-                {dashboardData.recentServices.map((service) => (
-                  <div
-                    key={service.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {service.title}
-                        </p>
-                        <Badge className={getStatusColor(service.status)}>
-                          {formatStatus(service.status)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {service.user.name}
-                      </p>
-                      {service.dueDate && (
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          Due: {formatDate(service.dueDate)}
-                        </p>
-                      )}
-                    </div>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/client/services/${service.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
+            <div className="space-y-3">
+              {dashboardData.pendingInvoices.map((invoice) => (
+                <div
+                  key={invoice.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {invoice.invoiceNumber}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {formatDate(invoice.invoiceDate)} • {formatCurrency(invoice.totalAmount)}
+                    </p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                <p>No services yet</p>
-              </div>
-            )}
+                  <Button size="sm" className="bg-purple-600 hover:bg-purple-700" asChild>
+                    <Link href={`/client/invoices/${invoice.id}/pay`}>
+                      Pay Now
+                    </Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   )
 }

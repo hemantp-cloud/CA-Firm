@@ -4,9 +4,9 @@ import type { NextRequest } from "next/server"
 
 // Role-based protected routes
 const roleRoutes = {
+  ADMIN: ["/admin"],
   CA: ["/ca"],
   CLIENT: ["/client"],
-  USER: ["/user"],
 }
 
 // Public routes (accessible without authentication)
@@ -26,12 +26,12 @@ const authenticatedRoutes = [
 // Helper function to get dashboard URL based on role
 function getDashboardUrl(role: string): string {
   switch (role) {
+    case "ADMIN":
+      return "/admin/dashboard"
     case "CA":
       return "/ca/dashboard"
     case "CLIENT":
       return "/client/dashboard"
-    case "USER":
-      return "/user/dashboard"
     default:
       return "/login"
   }
@@ -94,10 +94,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check if route is protected (role-based)
+  const isAdminRoute = matchesRoute(pathname, roleRoutes.ADMIN)
   const isCaRoute = matchesRoute(pathname, roleRoutes.CA)
   const isClientRoute = matchesRoute(pathname, roleRoutes.CLIENT)
-  const isUserRoute = matchesRoute(pathname, roleRoutes.USER)
-  const isProtectedRoute = isCaRoute || isClientRoute || isUserRoute
+  const isProtectedRoute = isAdminRoute || isCaRoute || isClientRoute
 
   if (isProtectedRoute) {
     // If no token, redirect to login with callbackUrl
@@ -121,7 +121,13 @@ export async function middleware(request: NextRequest) {
     }
 
     // Role-based access control
-    if (isCaRoute) {
+    if (isAdminRoute) {
+      // Only ADMIN can access /admin/* routes
+      if (userRole !== "ADMIN") {
+        const dashboardUrl = getDashboardUrl(userRole)
+        return NextResponse.redirect(new URL(dashboardUrl, request.url))
+      }
+    } else if (isCaRoute) {
       // Only CA can access /ca/* routes
       if (userRole !== "CA") {
         const dashboardUrl = getDashboardUrl(userRole)
@@ -130,12 +136,6 @@ export async function middleware(request: NextRequest) {
     } else if (isClientRoute) {
       // Only CLIENT can access /client/* routes
       if (userRole !== "CLIENT") {
-        const dashboardUrl = getDashboardUrl(userRole)
-        return NextResponse.redirect(new URL(dashboardUrl, request.url))
-      }
-    } else if (isUserRoute) {
-      // Only USER can access /user/* routes
-      if (userRole !== "USER") {
         const dashboardUrl = getDashboardUrl(userRole)
         return NextResponse.redirect(new URL(dashboardUrl, request.url))
       }

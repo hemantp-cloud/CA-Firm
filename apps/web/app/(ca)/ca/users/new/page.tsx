@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -9,96 +9,33 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import Link from "next/link"
 import api from "@/lib/api"
 
-const userSchema = z
-  .object({
-    name: z.string().min(1, "Name is required"),
-    email: z.string().email("Invalid email address"),
-    phone: z.string().optional(),
-    role: z.enum(["CLIENT", "USER"], {
-      errorMap: () => ({ message: "Role must be CLIENT or USER" }),
-    }),
-    clientId: z.string().optional(),
-    pan: z.string().optional(),
-    aadhar: z.string().optional(),
-    address: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      // If role is USER, clientId is required
-      if (data.role === "USER" && !data.clientId) {
-        return false
-      }
-      return true
-    },
-    {
-      message: "Client is required for USER role",
-      path: ["clientId"],
-    }
-  )
+const userSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().optional(),
+  pan: z.string().optional(),
+  aadhar: z.string().optional(),
+  address: z.string().optional(),
+})
 
 type UserFormData = z.infer<typeof userSchema>
 
-interface Client {
-  id: string
-  name: string
-}
-
 export default function NewUserPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const preSelectedClientId = searchParams.get("clientId")
-
   const [isLoading, setIsLoading] = useState(false)
-  const [clients, setClients] = useState<Client[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [selectedRole, setSelectedRole] = useState<string>("")
 
   const {
     register,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
-    defaultValues: {
-      clientId: preSelectedClientId || undefined,
-      role: preSelectedClientId ? "USER" : undefined,
-    },
   })
-
-  const role = watch("role")
-
-  useEffect(() => {
-    fetchClients()
-    if (preSelectedClientId) {
-      setSelectedRole("USER")
-      setValue("role", "USER")
-      setValue("clientId", preSelectedClientId)
-    }
-  }, [preSelectedClientId, setValue])
-
-  const fetchClients = async () => {
-    try {
-      const response = await api.get("/ca/clients")
-      if (response.data.success) {
-        setClients(response.data.data)
-      }
-    } catch (error) {
-      console.error("Failed to fetch clients:", error)
-    }
-  }
 
   const onSubmit = async (data: UserFormData) => {
     setIsLoading(true)
@@ -116,8 +53,8 @@ export default function NewUserPage() {
       console.error("Create user error:", err)
       setError(
         err.response?.data?.message ||
-          err.message ||
-          "Failed to create user. Please try again."
+        err.message ||
+        "Failed to create user. Please try again."
       )
     } finally {
       setIsLoading(false)
@@ -137,7 +74,7 @@ export default function NewUserPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Add New User</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Create a new user account. A welcome email with temporary password will be sent.
+            Create a new customer account. A welcome email with temporary password will be sent.
           </p>
         </div>
       </div>
@@ -200,90 +137,27 @@ export default function NewUserPage() {
                 <Input id="phone" {...register("phone")} />
               </div>
 
-              {/* Role */}
+              {/* PAN */}
               <div>
-                <Label htmlFor="role">
-                  Role <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={role || ""}
-                  onValueChange={(value) => {
-                    setValue("role", value as "CLIENT" | "USER")
-                    setSelectedRole(value)
-                    if (value === "CLIENT") {
-                      setValue("clientId", undefined)
-                    }
-                  }}
-                >
-                  <SelectTrigger className={errors.role ? "border-red-500" : ""}>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CLIENT">CLIENT</SelectItem>
-                    <SelectItem value="USER">USER</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.role && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.role.message}
-                  </p>
-                )}
+                <Label htmlFor="pan">PAN</Label>
+                <Input id="pan" {...register("pan")} />
               </div>
 
-              {/* Client (only if role is USER) */}
-              {role === "USER" && (
-                <div>
-                  <Label htmlFor="clientId">
-                    Client <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={watch("clientId") || ""}
-                    onValueChange={(value) => setValue("clientId", value)}
-                  >
-                    <SelectTrigger className={errors.clientId ? "border-red-500" : ""}>
-                      <SelectValue placeholder="Select client" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.clientId && (
-                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                      {errors.clientId.message}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* PAN (for USER role) */}
-              {role === "USER" && (
-                <div>
-                  <Label htmlFor="pan">PAN</Label>
-                  <Input id="pan" {...register("pan")} />
-                </div>
-              )}
-
-              {/* Aadhar (for USER role) */}
-              {role === "USER" && (
-                <div>
-                  <Label htmlFor="aadhar">Aadhar</Label>
-                  <Input id="aadhar" {...register("aadhar")} />
-                </div>
-              )}
+              {/* Aadhar */}
+              <div>
+                <Label htmlFor="aadhar">Aadhar</Label>
+                <Input id="aadhar" {...register("aadhar")} />
+              </div>
 
               {/* Address */}
-              <div className={role === "USER" ? "md:col-span-2" : ""}>
+              <div className="md:col-span-2">
                 <Label htmlFor="address">Address</Label>
                 <Input id="address" {...register("address")} />
               </div>
             </div>
 
             <div className="flex gap-4 pt-4">
-              <Button type="submit" disabled={isLoading}>
+              <Button type="submit" disabled={isLoading} className="bg-green-600 hover:bg-green-700">
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />

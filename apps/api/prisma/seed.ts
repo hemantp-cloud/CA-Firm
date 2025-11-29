@@ -30,7 +30,7 @@ async function main() {
       email: 'admin@cafirm.com',
       password: hashedPassword,
       name: 'CA Admin',
-      role: 'CA',
+      role: 'ADMIN',
       twoFactorEnabled: true,
       mustChangePassword: false,
       emailVerified: true,

@@ -109,8 +109,36 @@ export const authenticate = async (
 // ============================================
 
 /**
+ * Require ADMIN role
+ * Only ADMIN (super admin) can access
+ */
+export const requireAdmin = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+    return;
+  }
+
+  if (req.user.role !== 'ADMIN') {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. ADMIN role required.',
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
  * Require CA role
- * Only CA (super admin) can access
+ * ADMIN and CA can access
  */
 export const requireCA = (
   req: AuthenticatedRequest,
@@ -125,10 +153,10 @@ export const requireCA = (
     return;
   }
 
-  if (req.user.role !== 'CA') {
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'CA') {
     res.status(403).json({
       success: false,
-      message: 'Access denied. CA role required.',
+      message: 'Access denied. ADMIN or CA role required.',
     });
     return;
   }
@@ -138,37 +166,9 @@ export const requireCA = (
 
 /**
  * Require CLIENT role
- * CA and CLIENT can access (CLIENT includes CA)
+ * Any authenticated user can access (ADMIN, CA, or CLIENT)
  */
 export const requireClient = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): void => {
-  if (!req.user) {
-    res.status(401).json({
-      success: false,
-      message: 'Authentication required',
-    });
-    return;
-  }
-
-  if (req.user.role !== 'CA' && req.user.role !== 'CLIENT') {
-    res.status(403).json({
-      success: false,
-      message: 'Access denied. CA or CLIENT role required.',
-    });
-    return;
-  }
-
-  next();
-};
-
-/**
- * Require USER role
- * Any authenticated user can access (CA, CLIENT, or USER)
- */
-export const requireUser = (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
@@ -208,8 +208,8 @@ export const requireOwnership = (field: 'userId' | 'clientId', paramName: string
       return;
     }
 
-    // CA can access everything
-    if (req.user.role === 'CA') {
+    // ADMIN can access everything
+    if (req.user.role === 'ADMIN') {
       next();
       return;
     }
@@ -243,8 +243,8 @@ export const requireOwnership = (field: 'userId' | 'clientId', paramName: string
         return;
       }
 
+      // For CA role, check if resource belongs to their clientId
       // For CLIENT role, check if resource belongs to their clientId
-      // For USER role, check if resource belongs to their clientId
       // Note: This is a basic check - you may need to customize based on the resource type
       // For example, for Services, check service.userId or service.clientId
       // For Users, check user.clientId
@@ -287,6 +287,11 @@ export const requireOwnership = (field: 'userId' | 'clientId', paramName: string
 };
 
 /**
+ * Combined middleware: authenticate + requireAdmin
+ */
+export const requireAuthAndAdmin = [authenticate, requireAdmin];
+
+/**
  * Combined middleware: authenticate + requireCA
  */
 export const requireAuthAndCA = [authenticate, requireCA];
@@ -295,8 +300,3 @@ export const requireAuthAndCA = [authenticate, requireCA];
  * Combined middleware: authenticate + requireClient
  */
 export const requireAuthAndClient = [authenticate, requireClient];
-
-/**
- * Combined middleware: authenticate + requireUser
- */
-export const requireAuthAndUser = [authenticate, requireUser];

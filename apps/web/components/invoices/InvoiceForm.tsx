@@ -145,7 +145,7 @@ export default function InvoiceForm({
   const calculateTotals = () => {
     let subtotal = 0
 
-    formData.items.forEach((item) => {
+    formData.items.forEach((item: InvoiceItem) => {
       subtotal += Number(item.quantity) * Number(item.unitPrice)
     })
 

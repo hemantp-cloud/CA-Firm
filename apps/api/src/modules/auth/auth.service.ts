@@ -87,7 +87,7 @@ export function getRedirectUrl(role: string): string {
     case 'USER':
       return '/user/dashboard';
     default:
-      return '/dashboard';
+      return '/admin/dashboard';
   }
 }
 

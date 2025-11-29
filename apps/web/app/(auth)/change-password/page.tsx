@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useSession } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -98,19 +98,6 @@ export default function ChangePasswordPage() {
     "bg-green-500",
   ]
 
-  const getRedirectUrl = (role: string) => {
-    switch (role) {
-      case "CA":
-        return "/ca/dashboard"
-      case "CLIENT":
-        return "/client/dashboard"
-      case "USER":
-        return "/user/dashboard"
-      default:
-        return "/dashboard"
-    }
-  }
-
   const onSubmit = async (data: ChangePasswordFormData) => {
     if (!session?.user?.id) {
       setError("User session not found")
@@ -123,7 +110,7 @@ export default function ChangePasswordPage() {
     try {
       // Get token from localStorage for API call
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-      
+
       const response = await api.post(
         "/auth/change-password",
         {
@@ -136,10 +123,18 @@ export default function ChangePasswordPage() {
       )
 
       if (response.data.success) {
-        // Redirect to appropriate dashboard
-        const redirectUrl = getRedirectUrl((session.user as any).role || "USER")
-        router.push(redirectUrl)
-        router.refresh()
+        // Clear localStorage
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("token")
+          localStorage.removeItem("auth-storage")
+          localStorage.clear()
+        }
+
+        // Sign out from NextAuth (this will clear the session)
+        await signOut({ redirect: false })
+
+        // Redirect to login page
+        window.location.href = "/login"
       } else {
         setError(response.data.message || "Failed to change password")
       }
@@ -147,8 +142,8 @@ export default function ChangePasswordPage() {
       console.error("Change password error:", err)
       setError(
         err.response?.data?.message ||
-          err.message ||
-          "Failed to change password"
+        err.message ||
+        "Failed to change password"
       )
     } finally {
       setIsLoading(false)
@@ -281,11 +276,10 @@ export default function ChangePasswordPage() {
                 {[0, 1, 2, 3, 4].map((index) => (
                   <div
                     key={index}
-                    className={`h-1 flex-1 rounded ${
-                      index < passwordStrength
-                        ? strengthColors[passwordStrength - 1]
-                        : "bg-gray-200 dark:bg-gray-700"
-                    }`}
+                    className={`h-1 flex-1 rounded ${index < passwordStrength
+                      ? strengthColors[passwordStrength - 1]
+                      : "bg-gray-200 dark:bg-gray-700"
+                      }`}
                   />
                 ))}
               </div>
@@ -352,4 +346,3 @@ export default function ChangePasswordPage() {
     </div>
   )
 }
-

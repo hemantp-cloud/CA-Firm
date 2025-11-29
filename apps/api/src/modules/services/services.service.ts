@@ -12,16 +12,16 @@ interface ServiceFilters {
 
 interface UserContext {
   id: string;
-  role: string; // 'CA' | 'CLIENT' | 'USER'
+  role: string; // 'ADMIN' | 'CA' | 'CLIENT'
   firmId: string;
   clientId: string | null;
 }
 
 /**
  * Get all services with role-based filtering
- * - CA: all services in firm
- * - CLIENT: services of their users
- * - USER: only their services
+ * - ADMIN: all services in firm
+ * - CA: services of their customers
+ * - CLIENT: only their services
  */
 export async function getAllServices(userContext: UserContext, filters: ServiceFilters = {}) {
   const where: any = {
@@ -29,11 +29,11 @@ export async function getAllServices(userContext: UserContext, filters: ServiceF
   };
 
   // Role-based filtering
-  if (userContext.role === 'CLIENT') {
-    // CLIENT can only see services of users under them
+  if (userContext.role === 'CA') {
+    // CA can only see services of customers under them
     where.clientId = userContext.clientId;
-  } else if (userContext.role === 'USER') {
-    // USER can only see their own services
+  } else if (userContext.role === 'CLIENT') {
+    // CLIENT can only see their own services
     where.userId = userContext.id;
   }
 
@@ -118,9 +118,9 @@ export async function getServiceById(id: string, userContext: UserContext) {
   };
 
   // Role-based filtering
-  if (userContext.role === 'CLIENT') {
+  if (userContext.role === 'CA') {
     where.clientId = userContext.clientId;
-  } else if (userContext.role === 'USER') {
+  } else if (userContext.role === 'CLIENT') {
     where.userId = userContext.id;
   }
 
@@ -161,7 +161,7 @@ export async function getServiceById(id: string, userContext: UserContext) {
 }
 
 /**
- * Create a new service (CA only)
+ * Create a new service (ADMIN only)
  */
 export async function createService(firmId: string, data: any) {
   const {
@@ -182,7 +182,7 @@ export async function createService(firmId: string, data: any) {
     where: {
       id: userId,
       firmId,
-      role: 'USER' as any,
+      role: 'CLIENT' as any,
     },
   });
 
@@ -230,7 +230,7 @@ export async function createService(firmId: string, data: any) {
 }
 
 /**
- * Update service (CA only)
+ * Update service (ADMIN only)
  */
 export async function updateService(id: string, firmId: string, data: any) {
   // First verify the service exists and belongs to the firm
@@ -278,7 +278,7 @@ export async function updateService(id: string, firmId: string, data: any) {
 }
 
 /**
- * Update only the status field of a service (CA only)
+ * Update only the status field of a service (ADMIN only)
  * Logs activity
  */
 export async function updateServiceStatus(
@@ -354,7 +354,7 @@ export async function updateServiceStatus(
 }
 
 /**
- * Delete service (soft delete - CA only)
+ * Delete service (soft delete - ADMIN only)
  */
 export async function deleteService(id: string, firmId: string) {
   // First verify the service exists and belongs to the firm
@@ -390,9 +390,9 @@ export async function getServicesByStatus(userContext: UserContext) {
   };
 
   // Role-based filtering
-  if (userContext.role === 'CLIENT') {
+  if (userContext.role === 'CA') {
     where.clientId = userContext.clientId;
-  } else if (userContext.role === 'USER') {
+  } else if (userContext.role === 'CLIENT') {
     where.userId = userContext.id;
   }
 
