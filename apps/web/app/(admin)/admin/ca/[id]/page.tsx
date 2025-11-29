@@ -55,35 +55,35 @@ export default function ClientDetailsPage() {
   const fetchClient = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get(`/admin/clients/${clientId}`)
+      const response = await api.get(`/admin/ca/${clientId}`)
       if (response.data.success) {
         setClient(response.data.data)
       }
     } catch (error) {
-      console.error("Failed to fetch client:", error)
+      console.error("Failed to fetch ca:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to deactivate this client?")) {
+    if (!confirm("Are you sure you want to deactivate this ca?")) {
       return
     }
 
     try {
-      await api.delete(`/admin/clients/${clientId}`)
-      router.push("/admin/clients")
+      await api.delete(`/admin/ca/${clientId}`)
+      router.push("/admin/ca")
     } catch (error) {
-      console.error("Failed to delete client:", error)
-      alert("Failed to deactivate client")
+      console.error("Failed to delete ca:", error)
+      alert("Failed to deactivate ca")
     }
   }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-gray-500">Loading client details...</p>
+        <p className="text-gray-500">Loading ca details...</p>
       </div>
     )
   }
@@ -91,9 +91,9 @@ export default function ClientDetailsPage() {
   if (!client) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <p className="text-gray-500 mb-4">Client not found</p>
+        <p className="text-gray-500 mb-4">ca not found</p>
         <Button asChild>
-          <Link href="/admin/clients">Back to Clients</Link>
+          <Link href="/admin/ca">Back to ca</Link>
         </Button>
       </div>
     )
@@ -105,19 +105,19 @@ export default function ClientDetailsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/admin/clients">
+            <Link href="/admin/ca">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Link>
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{client.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Client details and users</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">ca details and clients</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link href={`/admin/clients/${clientId}/edit`}>
+            <Link href={`/admin/ca/${clientId}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>
@@ -219,12 +219,12 @@ export default function ClientDetailsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Users ({client.users.length})
+              Clients ({client.users.length})
             </h2>
             <Button asChild size="sm">
-              <Link href={`/admin/users/new?clientId=${clientId}`}>
+              <Link href={`/admin/client/new?clientId=${clientId}`}>
                 <UserCircle className="h-4 w-4 mr-2" />
-                Add User
+                Add Client
               </Link>
             </Button>
           </div>
@@ -235,7 +235,7 @@ export default function ClientDetailsPage() {
               <UserCircle className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
               <p>No users found for this client</p>
               <Button asChild variant="outline" size="sm" className="mt-4">
-                <Link href={`/admin/users/new?clientId=${clientId}`}>Add First User</Link>
+                <Link href={`/admin/client/new?clientId=${clientId}`}>Add First User</Link>
               </Button>
             </div>
           ) : (
@@ -272,7 +272,7 @@ export default function ClientDetailsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/admin/users/${user.id}`}>
+                        <Link href={`/admin/client/${user.id}`}>
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>

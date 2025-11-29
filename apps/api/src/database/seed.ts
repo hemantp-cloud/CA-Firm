@@ -49,12 +49,12 @@ async function main() {
   console.log(`✅ Created admin user: ${adminUser.email}\n`);
 
   // 4. Create CA user (Linked to Partner)
-  console.log('� Creating CA user...');
+  console.log('🧑 Creating CA user...');
   const caPassword = await bcrypt.hash('ca123', 10);
   const caUser = await prisma.user.create({
     data: {
       firmId: firm.id,
-      clientId: partner.id, // Linked to Partner
+      clientId: partner.id, // CA linked to Partner
       email: 'ca@demo.com',
       name: 'CA User',
       role: Role.CA,
@@ -64,8 +64,8 @@ async function main() {
   });
   console.log(`✅ Created CA user: ${caUser.email}\n`);
 
-  // 5. Create Client Users (End Customers linked to Partner)
-  console.log('👥 Creating client users...');
+  // 5. Create CLIENT Users (End Customers linked to CA via Partner)
+  console.log('👥 Creating client users (end customers)...');
   const clientPassword = await bcrypt.hash('client123', 10);
 
   const clientUsers = await Promise.all([

@@ -25,6 +25,7 @@
   "dependencies": {
     "@prisma/client": "^5.7.1",
     "@types/multer": "^2.0.0",
+    "@types/nodemailer": "^7.0.4",
     "@types/pdfkit": "^0.17.3",
     "@types/uuid": "^10.0.0",
     "bcrypt": "^5.1.1",
@@ -35,6 +36,7 @@
     "google-auth-library": "^10.5.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "nodemailer": "^7.0.11",
     "pdfkit": "^0.17.2",
     "prisma": "^5.7.1",
     "resend": "^6.5.2",

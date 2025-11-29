@@ -34,8 +34,8 @@ import { Shield } from "lucide-react"
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
-  { icon: Users, label: "CAs", href: "/admin/clients" },
-  { icon: UserCircle, label: "Clients", href: "/admin/users" },
+  { icon: Users, label: "CAs", href: "/admin/ca" },
+  { icon: UserCircle, label: "Clients", href: "/admin/client" },
   { icon: Briefcase, label: "Services", href: "/admin/services" },
   { icon: FileText, label: "Documents", href: "/admin/documents" },
   { icon: CreditCard, label: "Invoices", href: "/admin/invoices" },

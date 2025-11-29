@@ -58,7 +58,7 @@ export default function UserDetailsPage() {
   const fetchUser = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get(`/admin/users/${userId}`)
+      const response = await api.get(`/admin/client/${userId}`)
       if (response.data.success) {
         setUser(response.data.data)
       }
@@ -75,8 +75,8 @@ export default function UserDetailsPage() {
     }
 
     try {
-      await api.delete(`/admin/users/${userId}`)
-      router.push("/admin/users")
+      await api.delete(`/admin/client/${userId}`)
+      router.push("/admin/client")
     } catch (error) {
       console.error("Failed to delete user:", error)
       alert("Failed to deactivate user")
@@ -115,7 +115,7 @@ export default function UserDetailsPage() {
       <div className="flex flex-col items-center justify-center py-12">
         <p className="text-gray-500 mb-4">User not found</p>
         <Button asChild>
-          <Link href="/admin/users">Back to Users</Link>
+          <Link href="/admin/client">Back to Users</Link>
         </Button>
       </div>
     )
@@ -127,7 +127,7 @@ export default function UserDetailsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/admin/users">
+            <Link href="/admin/client">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Link>
@@ -139,7 +139,7 @@ export default function UserDetailsPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link href={`/admin/users/${userId}/edit`}>
+            <Link href={`/admin/client/${userId}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>

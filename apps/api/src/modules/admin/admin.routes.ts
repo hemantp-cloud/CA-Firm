@@ -439,5 +439,364 @@ router.delete('/users/:id', async (req: Request, res: Response): Promise<void> =
   }
 });
 
+// IMPORTANT: Make /users routes also available as /client routes
+// This maintains backward compatibility while supporting the new naming convention
+const clientRouter = Router();
+clientRouter.use(authenticate);
+clientRouter.use(requireAdmin);
+
+// Re-use the same handlers from /users routes
+clientRouter.get('/', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const firmId = getFirmId(req);
+    const filters: any = {};
+
+    if (req.query.role) {
+      filters.role = req.query.role as string;
+    }
+
+    if (req.query.clientId) {
+      filters.clientId = req.query.clientId as string;
+    }
+
+    if (req.query.isActive !== undefined) {
+      filters.isActive = req.query.isActive === 'true';
+    }
+
+    const users = await getAllUsers(firmId, filters);
+
+    res.status(200).json({
+      success: true,
+      data: users,
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch users',
+    });
+  }
+});
+
+clientRouter.post('/', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validationResult = createUserSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const firmId = getFirmId(req);
+    const user = await createUser(firmId, validationResult.data);
+
+    res.status(201).json({
+      success: true,
+      data: user,
+      message: 'User created successfully. Welcome email sent.',
+    });
+  } catch (error: any) {
+    console.error('Create user error:', error);
+
+    if (error.code === 'P2002' || error.message?.includes('email') || error.message?.includes('Email')) {
+      res.status(400).json({
+        success: false,
+        message: 'Email already exists',
+      });
+      return;
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create user',
+    });
+  }
+});
+
+clientRouter.get('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+      return;
+    }
+    const firmId = getFirmId(req);
+    const user = await getUserById(req.params.id, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'User not found',
+    });
+  }
+});
+
+clientRouter.put('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+      return;
+    }
+    const validationResult = updateUserSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const firmId = getFirmId(req);
+    const user = await updateUser(req.params.id, firmId, validationResult.data);
+
+    res.status(200).json({
+      success: true,
+      data: user,
+      message: 'User updated successfully',
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update user',
+    });
+  }
+});
+
+clientRouter.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+      return;
+    }
+    const firmId = getFirmId(req);
+    await deleteUser(req.params.id, firmId);
+
+    res.status(200).json({
+      success: true,
+      message: 'User deactivated successfully',
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to delete user',
+    });
+  }
+});
+
+// Mount the client router
+router.use('/client', clientRouter);
+
+// IMPORTANT: Also mount /clients routes as /ca for clearer terminology
+// Frontend calls /admin/ca for CA partner management
+// This uses the same handlers as /clients
+const caRouter = Router();
+caRouter.use(authenticate);
+caRouter.use(requireAdmin);
+
+// Re-use all client handlers for CA routes
+caRouter.get('/', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const firmId = getFirmId(req);
+    const clients = await getAllClients(firmId);
+
+    res.status(200).json({
+      success: true,
+      data: clients,
+    });
+  } catch (error) {
+    console.error('Get clients error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch clients',
+    });
+  }
+});
+
+caRouter.post('/', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validationResult = createClientSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const firmId = getFirmId(req);
+    const client = await createClient(firmId, validationResult.data);
+
+    res.status(201).json({
+      success: true,
+      data: client,
+      message: 'Client created successfully. Welcome email sent.',
+    });
+  } catch (error: any) {
+    console.error('Create client error:', error);
+
+    if (error.code === 'P2002' || error.message?.includes('email') || error.message?.includes('Email')) {
+      if (error.code === 'INACTIVE_CLIENT_EXISTS') {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+          code: error.code,
+          existingClientId: error.existingClientId,
+        });
+        return;
+      }
+
+      res.status(400).json({
+        success: false,
+        message: 'Email already exists',
+      });
+      return;
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create client',
+    });
+  }
+});
+
+caRouter.get('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'Client ID is required',
+      });
+      return;
+    }
+    const firmId = getFirmId(req);
+    const client = await getClientById(req.params.id, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: client,
+    });
+  } catch (error) {
+    console.error('Get client error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Client not found',
+    });
+  }
+});
+
+caRouter.put('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'Client ID is required',
+      });
+      return;
+    }
+    const validationResult = updateClientSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const firmId = getFirmId(req);
+    const client = await updateClient(req.params.id, firmId, validationResult.data);
+
+    res.status(200).json({
+      success: true,
+      data: client,
+      message: 'Client updated successfully',
+    });
+  } catch (error) {
+    console.error('Update client error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update client',
+    });
+  }
+});
+
+caRouter.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'Client ID is required',
+      });
+      return;
+    }
+    const firmId = getFirmId(req);
+    await deleteClient(req.params.id, firmId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Client deactivated successfully',
+    });
+  } catch (error) {
+    console.error('Delete client error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to delete client',
+    });
+  }
+});
+
+caRouter.post('/:id/reactivate', async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'Client ID is required',
+      });
+      return;
+    }
+    const firmId = getFirmId(req);
+    const client = await reactivateClient(req.params.id, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: client,
+      message: 'Client reactivated successfully',
+    });
+  } catch (error) {
+    console.error('Reactivate client error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to reactivate client',
+    });
+  }
+});
+
+// Mount the CA router
+router.use('/ca', caRouter);
+
 export default router;
 

@@ -95,9 +95,9 @@ export async function middleware(request: NextRequest) {
 
   // Check if route is protected (role-based)
   const isAdminRoute = matchesRoute(pathname, roleRoutes.ADMIN)
-  const isCaRoute = matchesRoute(pathname, roleRoutes.CA)
+  const isCARoute = matchesRoute(pathname, roleRoutes.CA)
   const isClientRoute = matchesRoute(pathname, roleRoutes.CLIENT)
-  const isProtectedRoute = isAdminRoute || isCaRoute || isClientRoute
+  const isProtectedRoute = isAdminRoute || isCARoute || isClientRoute
 
   if (isProtectedRoute) {
     // If no token, redirect to login with callbackUrl
@@ -112,8 +112,6 @@ export async function middleware(request: NextRequest) {
     const userRole = role.toUpperCase()
 
     // Check if user must change password
-    // Note: mustChangePassword might need to be added to JWT token in NextAuth callback
-    // For now, we'll check if it exists in the token
     const mustChangePassword = (token as any).mustChangePassword === true
 
     if (mustChangePassword && pathname !== "/change-password") {
@@ -127,7 +125,7 @@ export async function middleware(request: NextRequest) {
         const dashboardUrl = getDashboardUrl(userRole)
         return NextResponse.redirect(new URL(dashboardUrl, request.url))
       }
-    } else if (isCaRoute) {
+    } else if (isCARoute) {
       // Only CA can access /ca/* routes
       if (userRole !== "CA") {
         const dashboardUrl = getDashboardUrl(userRole)

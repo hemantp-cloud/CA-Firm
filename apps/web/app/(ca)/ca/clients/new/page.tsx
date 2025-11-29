@@ -42,10 +42,10 @@ export default function NewUserPage() {
     setError(null)
 
     try {
-      const response = await api.post("/ca/users", data)
+      const response = await api.post("/ca/clients", data)
 
       if (response.data.success) {
-        router.push(`/ca/users/${response.data.data.id}`)
+        router.push(`/ca/clients/${response.data.data.id}`)
       } else {
         setError(response.data.message || "Failed to create user")
       }
@@ -66,15 +66,15 @@ export default function NewUserPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/ca/users">
+          <Link href="/ca/clients">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Add New User</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Add New Client</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Create a new customer account. A welcome email with temporary password will be sent.
+            Create a new client account. A welcome email with temporary password will be sent.
           </p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function NewUserPage() {
       {/* Form */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">User Information</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Client Information</h2>
         </CardHeader>
         <CardContent>
           {error && (
@@ -168,7 +168,7 @@ export default function NewUserPage() {
                 )}
               </Button>
               <Button type="button" variant="outline" asChild>
-                <Link href="/ca/users">Cancel</Link>
+                <Link href="/ca/clients">Cancel</Link>
               </Button>
             </div>
           </form>

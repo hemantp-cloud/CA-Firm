@@ -54,7 +54,7 @@ export default function UserDetailsPage() {
   const fetchUser = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get(`/ca/users/${userId}`)
+      const response = await api.get(`/ca/clients/${userId}`)
       if (response.data.success) {
         setUser(response.data.data)
       }
@@ -71,8 +71,8 @@ export default function UserDetailsPage() {
     }
 
     try {
-      await api.delete(`/ca/users/${userId}`)
-      router.push("/ca/users")
+      await api.delete(`/ca/clients/${userId}`)
+      router.push("/ca/clients")
     } catch (error) {
       console.error("Failed to delete user:", error)
       alert("Failed to deactivate user")
@@ -109,9 +109,9 @@ export default function UserDetailsPage() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <p className="text-gray-500 mb-4">User not found</p>
+        <p className="text-gray-500 mb-4">Client not found</p>
         <Button asChild>
-          <Link href="/ca/users">Back to Users</Link>
+          <Link href="/ca/clients">Back to Clients</Link>
         </Button>
       </div>
     )
@@ -123,19 +123,19 @@ export default function UserDetailsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/ca/users">
+            <Link href="/ca/clients">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Link>
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{user.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">User details and services</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Client details and services</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link href={`/ca/users/${userId}/edit`}>
+            <Link href={`/ca/clients/${userId}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>
@@ -150,7 +150,7 @@ export default function UserDetailsPage() {
       {/* User Information */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">User Information</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Client Information</h2>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -235,7 +235,7 @@ export default function UserDetailsPage() {
           {user.services.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-              <p>No services found for this user</p>
+              <p>No services found for this client</p>
             </div>
           ) : (
             <Table>

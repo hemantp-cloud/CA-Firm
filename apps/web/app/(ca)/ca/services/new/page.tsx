@@ -88,7 +88,7 @@ export default function NewCaServicePage() {
 
     const fetchUsers = async () => {
         try {
-            const response = await api.get("/ca/users")
+            const response = await api.get("/ca/clients")
             if (response.data.success) {
                 setUsers(response.data.data)
             }

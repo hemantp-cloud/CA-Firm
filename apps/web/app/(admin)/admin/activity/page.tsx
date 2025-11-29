@@ -53,8 +53,8 @@ export default function ActivityLogsPage() {
   })
 
   const [filters, setFilters] = useState({
-    action: "",
-    entity: "",
+    action: "all",
+    entity: "all",
     userId: "",
     dateFrom: "",
     dateTo: "",
@@ -73,8 +73,8 @@ export default function ActivityLogsPage() {
         limit: pagination.limit.toString(),
       })
 
-      if (filters.action) params.append("action", filters.action)
-      if (filters.entity) params.append("entity", filters.entity)
+      if (filters.action && filters.action !== 'all') params.append("action", filters.action)
+      if (filters.entity && filters.entity !== 'all') params.append("entity", filters.entity)
       if (filters.userId) params.append("userId", filters.userId)
       if (filters.dateFrom) params.append("dateFrom", filters.dateFrom)
       if (filters.dateTo) params.append("dateTo", filters.dateTo)
@@ -197,7 +197,7 @@ export default function ActivityLogsPage() {
                   <SelectValue placeholder="All Actions" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Actions</SelectItem>
+                  <SelectItem value="all">All Actions</SelectItem>
                   {LOG_ACTIONS.map((action) => (
                     <SelectItem key={action} value={action}>
                       {action}
@@ -214,7 +214,7 @@ export default function ActivityLogsPage() {
                   <SelectValue placeholder="All Entities" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Entities</SelectItem>
+                  <SelectItem value="all">All Entities</SelectItem>
                   {LOG_ENTITIES.map((entity) => (
                     <SelectItem key={entity} value={entity}>
                       {entity}
@@ -249,8 +249,8 @@ export default function ActivityLogsPage() {
               variant="outline"
               onClick={() => {
                 setFilters({
-                  action: "",
-                  entity: "",
+                  action: "all",
+                  entity: "all",
                   userId: "",
                   dateFrom: "",
                   dateTo: "",

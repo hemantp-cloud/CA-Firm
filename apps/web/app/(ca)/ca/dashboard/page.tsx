@@ -88,13 +88,13 @@ export default function CADashboardPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Overview of your users and their services
+            Overview of your clients and their services
           </p>
         </div>
         <Button asChild className="bg-green-600 hover:bg-green-700">
-          <Link href="/ca/users/new">
+          <Link href="/ca/clients/new">
             <Plus className="h-4 w-4 mr-2" />
-            Add User
+            Add Client
           </Link>
         </Button>
       </div>
@@ -191,16 +191,16 @@ export default function CADashboardPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Recent Users
+                Recent Clients
               </h2>
               <Button variant="outline" size="sm" asChild>
-                <Link href="/ca/users">View All</Link>
+                <Link href="/ca/clients">View All</Link>
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading users...</div>
+              <div className="text-center py-8 text-gray-500">Loading clients...</div>
             ) : dashboardData?.recentUsers && dashboardData.recentUsers.length > 0 ? (
               <div className="space-y-3">
                 {dashboardData.recentUsers.map((user) => (
@@ -227,7 +227,7 @@ export default function CADashboardPage() {
                       </p>
                     </div>
                     <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/ca/users/${user.id}`}>
+                      <Link href={`/ca/clients/${user.id}`}>
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
@@ -237,9 +237,9 @@ export default function CADashboardPage() {
             ) : (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <UserCircle className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                <p>No users yet</p>
+                <p>No clients yet</p>
                 <Button asChild variant="outline" size="sm" className="mt-4">
-                  <Link href="/ca/users/new">Add Your First User</Link>
+                  <Link href="/ca/clients/new">Add Your First Client</Link>
                 </Button>
               </div>
             )}

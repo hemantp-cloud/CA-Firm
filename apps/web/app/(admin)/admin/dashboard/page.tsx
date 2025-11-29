@@ -113,8 +113,14 @@ export default function AdminDashboardPage() {
         </div>
         <div className="flex gap-2">
           <Button asChild>
-            <Link href="/admin/clients/new">
-              <Plus className="h-4 w-4 mr-2" />
+            <Link href="/admin/ca/new">
+              <Users className="h-4 w-4 mr-2" />
+              Add CA Partner
+            </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href="/admin/client/new">
+              <UserCircle className="h-4 w-4 mr-2" />
               Add Client
             </Link>
           </Button>

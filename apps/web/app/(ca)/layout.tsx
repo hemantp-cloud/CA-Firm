@@ -30,7 +30,7 @@ import { Building2 } from "lucide-react"
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/ca/dashboard" },
-  { icon: UserCircle, label: "Clients", href: "/ca/users" },
+  { icon: UserCircle, label: "Clients", href: "/ca/clients" },
   { icon: Briefcase, label: "Services", href: "/ca/services" },
   { icon: FileText, label: "Documents", href: "/ca/documents" },
   { icon: CreditCard, label: "Invoices", href: "/ca/invoices" },

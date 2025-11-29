@@ -50,24 +50,20 @@ interface Client {
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [roleFilter, setRoleFilter] = useState<string>("all")
-  const [clientFilter, setClientFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
 
   useEffect(() => {
     fetchUsers()
-    fetchClients()
   }, [])
 
   const fetchUsers = async () => {
     try {
       setIsLoading(true)
       const params = new URLSearchParams()
-      if (roleFilter !== "all") params.append("role", roleFilter)
-      if (clientFilter !== "all") params.append("clientId", clientFilter)
+      // Always filter for CLIENT role only
+      params.append("role", "CLIENT")
       if (statusFilter !== "all") params.append("isActive", statusFilter === "active" ? "true" : "false")
 
       const response = await api.get(`/admin/users?${params.toString()}`)
@@ -81,20 +77,11 @@ export default function UsersPage() {
     }
   }
 
-  const fetchClients = async () => {
-    try {
-      const response = await api.get("/admin/clients")
-      if (response.data.success) {
-        setClients(response.data.data)
-      }
-    } catch (error) {
-      console.error("Failed to fetch clients:", error)
-    }
-  }
+
 
   useEffect(() => {
     fetchUsers()
-  }, [roleFilter, clientFilter, statusFilter])
+  }, [statusFilter])
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to deactivate this user?")) {
@@ -102,7 +89,7 @@ export default function UsersPage() {
     }
 
     try {
-      await api.delete(`/admin/users/${id}`)
+      await api.delete(`/admin/client/${id}`)
       fetchUsers()
     } catch (error) {
       console.error("Failed to delete user:", error)
@@ -150,15 +137,15 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">CAs & Clients</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Clients</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage all users (CAs and Clients)
+            Manage all clients
           </p>
         </div>
         <Button asChild>
-          <Link href="/admin/users/new">
+          <Link href="/admin/client/new">
             <Plus className="h-4 w-4 mr-2" />
-            Add User
+            Add Client
           </Link>
         </Button>
       </div>
@@ -166,71 +153,32 @@ export default function UsersPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Search */}
-            <div className="md:col-span-2 relative">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 type="search"
-                placeholder="Search users..."
+                placeholder="Search clients..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
 
-            {/* Role Filter */}
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="All Roles" />
+                <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="CA">CA</SelectItem>
-                <SelectItem value="CLIENT">Client</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Client Filter */}
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Clients" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Status Filter */}
-          <div className="mt-4 flex gap-2">
-            <Button
-              variant={statusFilter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setStatusFilter("all")}
-            >
-              All
-            </Button>
-            <Button
-              variant={statusFilter === "active" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setStatusFilter("active")}
-            >
-              Active
-            </Button>
-            <Button
-              variant={statusFilter === "inactive" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setStatusFilter("inactive")}
-            >
-              Inactive
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -238,7 +186,7 @@ export default function UsersPage() {
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            All Users ({filteredUsers.length})
+            All Clients ({filteredUsers.length})
           </h2>
         </CardHeader>
         <CardContent>
@@ -270,7 +218,7 @@ export default function UsersPage() {
                       <UserCircle className="h-12 w-12 text-gray-300 dark:text-gray-600" />
                       <p className="text-gray-500 dark:text-gray-400">No users found</p>
                       <Button asChild variant="outline" size="sm">
-                        <Link href="/admin/users/new">
+                        <Link href="/admin/client/new">
                           <Plus className="h-4 w-4 mr-2" />
                           Add Your First User
                         </Link>
@@ -318,13 +266,13 @@ export default function UsersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/users/${user.id}`} className="cursor-pointer">
+                            <Link href={`/admin/client/${user.id}`} className="cursor-pointer">
                               <Eye className="h-4 w-4 mr-2" />
                               View
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/users/${user.id}/edit`} className="cursor-pointer">
+                            <Link href={`/admin/client/${user.id}/edit`} className="cursor-pointer">
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
                             </Link>

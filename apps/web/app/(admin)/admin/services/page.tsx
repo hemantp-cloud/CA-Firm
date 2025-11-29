@@ -255,10 +255,10 @@ export default function ServicesPage() {
             {/* User Filter */}
             <Select value={userFilter} onValueChange={setUserFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="All Users" />
+                <SelectValue placeholder="All Clients" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Users</SelectItem>
+                <SelectItem value="all">All Clients</SelectItem>
                 {filteredUsers.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
                     {user.name}

@@ -89,7 +89,7 @@ export default function CaServicesPage() {
 
     const fetchUsers = async () => {
         try {
-            const response = await api.get("/ca/users")
+            const response = await api.get("/ca/clients")
             if (response.data.success) {
                 setUsers(response.data.data)
             }
@@ -213,10 +213,10 @@ export default function CaServicesPage() {
                         {/* User Filter */}
                         <Select value={userFilter} onValueChange={setUserFilter}>
                             <SelectTrigger>
-                                <SelectValue placeholder="All Users" />
+                                <SelectValue placeholder="All Clients" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Users</SelectItem>
+                                <SelectItem value="all">All Clients</SelectItem>
                                 {users.map((user) => (
                                     <SelectItem key={user.id} value={user.id}>
                                         {user.name}

@@ -84,10 +84,10 @@ export function getRedirectUrl(role: string): string {
       return '/ca/dashboard';
     case 'CLIENT':
       return '/client/dashboard';
-    case 'USER':
-      return '/user/dashboard';
-    default:
+    case 'ADMIN':
       return '/admin/dashboard';
+    default:
+      return '/404notfound';
   }
 }
 
@@ -434,10 +434,9 @@ export async function googleAuth(
       throw new Error('Account not found. Please contact administrator.');
     }
 
-    // CA cannot use Google login
-    if (user.role === 'CA') {
-      throw new Error('CA cannot use Google Sign-In. Please use email and password.');
-    }
+    // CA and Client can use Google login if their email matches
+    // Admin creates the account first, so we just link it here
+
 
     // Check if user is active
     if (!user.isActive) {

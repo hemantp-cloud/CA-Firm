@@ -16,8 +16,8 @@ datasource db {
 
 enum Role {
   ADMIN   // Super admin - manages the firm
-  CA      // Chartered Accountants/Partners who bring customers
-  CLIENT  // End customers
+  CA      // Chartered Accountants/Partners who bring customers (was CLIENT)
+  CLIENT  // End customers (was USER)
 }
 
 enum ServiceStatus {
@@ -134,7 +134,7 @@ model Client {
 
   // Relations
   firm     Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  users    User[]   // Users (CLIENT role and USER role) managed by this client
+  users    User[]   // Users (CLIENT role) managed by this CA
   services Service[]
   invoices Invoice[]
 
@@ -147,7 +147,7 @@ model Client {
 model User {
   id        String   @id @default(uuid())
   firmId    String
-  clientId  String?  // NULL for CA, set for CLIENT and USER roles
+  clientId  String?  // NULL for ADMIN and CA roles, set for CLIENT role
   email     String
   password  String?  // NULL for Google SSO users
   name      String
@@ -187,7 +187,7 @@ model User {
   // Relations
   firm              Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
   client            Client?           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  services          Service[]         // Services belonging to this user (if USER role)
+  services          Service[]         // Services belonging to this user (if CLIENT role)
   tasks             Task[]
   documents         Document[]
   invoices          Invoice[]
@@ -206,8 +206,8 @@ model User {
 model Service {
   id          String        @id @default(uuid())
   firmId      String
-  userId      String        // Service belongs to USER (end customer)
-  clientId    String?       // Optional: which CLIENT brought this user
+  userId      String        // Service belongs to CLIENT (end customer)
+  clientId    String?       // Optional: which CA brought this client
   title       String
   description String?
   type        ServiceType
@@ -263,7 +263,7 @@ model Task {
 model Document {
   id          String       @id @default(uuid())
   firmId      String
-  userId      String       // Document belongs to USER
+  userId      String       // Document belongs to CLIENT
   serviceId   String?      // Optional: linked to a service
   fileName    String
   fileType    String       // MIME type
@@ -293,8 +293,8 @@ model Document {
 model Invoice {
   id            String        @id @default(uuid())
   firmId        String
-  userId        String        // Invoice for USER (end customer)
-  clientId      String?       // Optional: which CLIENT brought this user
+  userId        String        // Invoice for CLIENT (end customer)
+  clientId      String?       // Optional: which CA brought this client
   serviceId     String?       // Optional: linked to a service
   invoiceNumber String        @unique
   invoiceDate   DateTime

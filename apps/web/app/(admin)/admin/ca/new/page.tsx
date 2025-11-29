@@ -43,10 +43,10 @@ export default function NewClientPage() {
     setError(null)
 
     try {
-      const response = await api.post("/admin/clients", data)
+      const response = await api.post("/admin/ca", data)
 
       if (response.data.success) {
-        router.push(`/admin/clients/${response.data.data.id}`)
+        router.push(`/admin/ca/${response.data.data.id}`)
       } else {
         setError(response.data.message || "Failed to create client")
       }
@@ -57,9 +57,9 @@ export default function NewClientPage() {
       if (responseData?.code === 'INACTIVE_CLIENT_EXISTS' && responseData.existingClientId) {
         if (confirm("A client with this email exists but is inactive. Would you like to reactivate them?")) {
           try {
-            await api.post(`/admin/clients/${responseData.existingClientId}/reactivate`)
-            alert("Client reactivated successfully")
-            router.push(`/admin/clients/${responseData.existingClientId}`)
+            await api.post(`/admin/ca/${responseData.existingClientId}/reactivate`)
+            alert("CA reactivated successfully")
+            router.push(`/admin/ca/${responseData.existingClientId}`)
             return
           } catch (reactivateErr) {
             console.error("Reactivate error:", reactivateErr)
@@ -83,15 +83,15 @@ export default function NewClientPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/admin/clients">
+          <Link href="/admin/ca">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Add New Client</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Add New CA Partner</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Create a new client partner. A CA user account will be created automatically.
+            Create a new CA partner. A CA user account will be created automatically.
           </p>
         </div>
       </div>
@@ -99,7 +99,7 @@ export default function NewClientPage() {
       {/* Form */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Client Information</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">CA Partner Information</h2>
         </CardHeader>
         <CardContent>
           {error && (
@@ -198,11 +198,11 @@ export default function NewClientPage() {
                     Creating...
                   </>
                 ) : (
-                  "Create Client"
+                  "Create CA Partner"
                 )}
               </Button>
               <Button type="button" variant="outline" asChild>
-                <Link href="/admin/clients">Cancel</Link>
+                <Link href="/admin/ca">Cancel</Link>
               </Button>
             </div>
           </form>

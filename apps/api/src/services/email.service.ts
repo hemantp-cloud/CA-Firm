@@ -1,18 +1,33 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
 const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@cafirm.com';
 const FIRM_NAME = process.env.FIRM_NAME || 'CA Firm Management';
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-// Check if API key is provided
-const isEmailEnabled = !!RESEND_API_KEY && RESEND_API_KEY.trim() !== '';
+// Email configuration
+const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587');
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
 
-// Initialize Resend only if API key is provided
-let resend: Resend | null = null;
+// Check if email configuration is provided
+const isEmailEnabled = !!SMTP_USER && !!SMTP_PASS;
+
+// Initialize NodeMailer transporter
+let transporter: nodemailer.Transporter | null = null;
+
 if (isEmailEnabled) {
-  resend = new Resend(RESEND_API_KEY);
+  transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465, // true for 465, false for other ports
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS,
+    },
+  });
+  console.log('📧 Email service initialized with NodeMailer');
 } else {
-  console.warn('⚠️  RESEND_API_KEY not set. Emails will be logged to console.');
+  console.warn('⚠️  SMTP credentials not set. Emails will be logged to console.');
 }
 
 /**
@@ -40,28 +55,32 @@ async function mockSendEmail(
     .trim();
   console.log(textContent);
   console.log('='.repeat(80));
-  console.log('To enable real email sending, set RESEND_API_KEY in your .env file');
+  console.log('To enable real email sending, set SMTP_USER and SMTP_PASS in your .env file');
   console.log('='.repeat(80));
 }
 
 /**
- * Send email using Resend or mock mode
+ * Send email using NodeMailer or mock mode
  */
 async function sendEmail(
   to: string,
   subject: string,
   html: string
 ): Promise<void> {
-  if (isEmailEnabled && resend) {
+  if (isEmailEnabled && transporter) {
     try {
-      await resend.emails.send({
-        from: EMAIL_FROM,
+      await transporter.sendMail({
+        from: `"${FIRM_NAME}" <${EMAIL_FROM}>`,
         to,
         subject,
         html,
       });
+      console.log(`✅ Email sent to ${to}`);
     } catch (error) {
       console.error('Failed to send email:', error);
+      // Fallback to mock if sending fails
+      console.log('⚠️  Falling back to mock email due to error');
+      await mockSendEmail(to, subject, html);
       throw error;
     }
   } else {
@@ -220,7 +239,7 @@ export async function sendWelcomeEmail(
   role: string
 ): Promise<void> {
   const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000/login';
-  
+
   const content = `
     <h2>Welcome to ${FIRM_NAME}!</h2>
     <p>Hello ${userName},</p>
@@ -303,7 +322,7 @@ export async function sendInvoiceEmail(
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const invoiceUrl = `${frontendUrl}/invoices/${invoiceId}`;
   const pdfUrl = `${frontendUrl}/api/invoices/${invoiceId}/pdf`;
-  
+
   const content = `
     <h2>Invoice ${invoiceNumber}</h2>
     <p>Hello ${userName},</p>
@@ -346,7 +365,7 @@ export async function sendServiceStatusUpdateEmail(
 ): Promise<void> {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const serviceUrl = `${frontendUrl}/services/${serviceId}`;
-  
+
   const content = `
     <h2>Service Status Updated</h2>
     <p>Hello ${userName},</p>

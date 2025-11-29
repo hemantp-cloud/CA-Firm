@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Search, Eye, Edit, Trash2, MoreVertical } from "lucide-react"
+import { Plus, Search, Eye, Edit, MoreVertical } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,78 +23,73 @@ import {
 import Link from "next/link"
 import api from "@/lib/api"
 
-interface Client {
+interface User {
   id: string
   name: string
-  email: string | null
+  email: string
   phone: string | null
-  contactPerson: string | null
-  usersCount: number
   isActive: boolean
+  servicesCount: number
+  lastLoginAt: string | null
 }
 
-export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([])
+export default function CAUsersPage() {
+  const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
-    fetchClients()
+    fetchUsers()
   }, [])
 
-  const fetchClients = async () => {
+  const fetchUsers = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get("/admin/clients")
+      const response = await api.get("/ca/clients")
       if (response.data.success) {
-        setClients(response.data.data)
+        setUsers(response.data.data)
       }
     } catch (error) {
-      console.error("Failed to fetch clients:", error)
+      console.error("Failed to fetch users:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleReactivate = async (id: string) => {
-    if (!confirm("Are you sure you want to reactivate this client?")) {
-      return
-    }
-
-    try {
-      await api.post(`/admin/clients/${id}/reactivate`)
-      fetchClients()
-      alert("Client reactivated successfully")
-    } catch (error) {
-      console.error("Failed to reactivate client:", error)
-      alert("Failed to reactivate client")
-    }
-  }
-
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure? This will also deactivate all users under this client.")) {
+    if (!confirm("Are you sure you want to deactivate this user?")) {
       return
     }
 
     try {
-      await api.delete(`/admin/clients/${id}`)
-      fetchClients()
+      await api.delete(`/ca/clients/${id}`)
+      fetchUsers()
     } catch (error) {
-      console.error("Failed to delete client:", error)
-      alert("Failed to deactivate client")
+      console.error("Failed to delete user:", error)
+      alert("Failed to deactivate user")
     }
   }
 
-  const filteredClients = clients.filter((client) => {
+  const filteredUsers = users.filter((user) => {
     if (!searchQuery.trim()) return true
     const query = searchQuery.toLowerCase()
     return (
-      client.name.toLowerCase().includes(query) ||
-      client.email?.toLowerCase().includes(query) ||
-      client.contactPerson?.toLowerCase().includes(query) ||
-      client.phone?.toLowerCase().includes(query)
+      user.name.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query)
     )
   })
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "Never"
+    const date = new Date(dateString)
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -103,11 +98,11 @@ export default function ClientsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Clients</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage your client partners and sub-agents
+            Manage your customers (CLIENT role)
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/clients/new">
+        <Button asChild className="bg-green-600 hover:bg-green-700">
+          <Link href="/ca/clients/new">
             <Plus className="h-4 w-4 mr-2" />
             Add Client
           </Link>
@@ -121,7 +116,7 @@ export default function ClientsPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="search"
-              placeholder="Search clients by name, email, or contact person..."
+              placeholder="Search clients by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -130,23 +125,23 @@ export default function ClientsPage() {
         </CardContent>
       </Card>
 
-      {/* Clients Table */}
+      {/* Users Table */}
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            All Clients ({filteredClients.length})
+            All Clients ({filteredUsers.length})
           </h2>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Company Name</TableHead>
-                <TableHead>Contact Person</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Users Count</TableHead>
+                <TableHead>Services</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Last Login</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -157,13 +152,13 @@ export default function ClientsPage() {
                     Loading clients...
                   </TableCell>
                 </TableRow>
-              ) : filteredClients.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
                       <p className="text-gray-500 dark:text-gray-400">No clients found</p>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href="/admin/clients/new">
+                      <Button asChild variant="outline" size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                        <Link href="/ca/clients/new">
                           <Plus className="h-4 w-4 mr-2" />
                           Add Your First Client
                         </Link>
@@ -172,25 +167,27 @@ export default function ClientsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredClients.map((client) => (
-                  <TableRow key={client.id} className={!client.isActive ? "opacity-60 bg-gray-50 dark:bg-gray-900/50" : ""}>
-                    <TableCell className="font-medium">{client.name}</TableCell>
-                    <TableCell>{client.contactPerson || "-"}</TableCell>
-                    <TableCell>{client.email || "-"}</TableCell>
-                    <TableCell>{client.phone || "-"}</TableCell>
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.phone || "-"}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{client.usersCount}</Badge>
+                      <Badge variant="outline">{user.servicesCount}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
                         className={
-                          client.isActive
+                          user.isActive
                             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                             : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                         }
                       >
-                        {client.isActive ? "Active" : "Inactive"}
+                        {user.isActive ? "Active" : "Inactive"}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500 dark:text-gray-400">
+                      {formatDate(user.lastLoginAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -201,34 +198,23 @@ export default function ClientsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/clients/${client.id}`} className="cursor-pointer">
+                            <Link href={`/ca/clients/${user.id}`} className="cursor-pointer">
                               <Eye className="h-4 w-4 mr-2" />
                               View
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/admin/clients/${client.id}/edit`} className="cursor-pointer">
+                            <Link href={`/ca/clients/${user.id}/edit`} className="cursor-pointer">
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
                             </Link>
                           </DropdownMenuItem>
-                          {client.isActive ? (
-                            <DropdownMenuItem
-                              onClick={() => handleDelete(client.id)}
-                              className="text-red-600 dark:text-red-400 cursor-pointer"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Deactivate
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem
-                              onClick={() => handleReactivate(client.id)}
-                              className="text-green-600 dark:text-green-400 cursor-pointer"
-                            >
-                              <Plus className="h-4 w-4 mr-2" />
-                              Reactivate
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(user.id)}
+                            className="text-red-600 dark:text-red-400"
+                          >
+                            Deactivate
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

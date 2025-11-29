@@ -368,5 +368,156 @@ router.put('/profile', async (req: AuthenticatedRequest, res: Response): Promise
   }
 });
 
+// IMPORTANT: Make /users routes also available as /clients routes
+// Frontend uses /ca/clients terminology for better clarity
+router.get('/clients', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const users = await getCaCustomers(clientId, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: users,
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch users',
+    });
+  }
+});
+
+router.post('/clients', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const validationResult = createCaCustomerSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const user = await createCaCustomer(clientId, firmId, validationResult.data);
+
+    res.status(201).json({
+      success: true,
+      data: user,
+      message: 'User created successfully. Welcome email sent.',
+    });
+  } catch (error: any) {
+    console.error('Create user error:', error);
+
+    if (error.code === 'P2002' || error.message?.includes('email') || error.message?.includes('Email')) {
+      res.status(400).json({
+        success: false,
+        message: 'Email already exists',
+      });
+      return;
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create user',
+    });
+  }
+});
+
+router.get('/clients/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+      return;
+    }
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const user = await getCaCustomerById(req.params.id, clientId, firmId);
+
+    res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'User not found',
+    });
+  }
+});
+
+router.put('/clients/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+      return;
+    }
+    const validationResult = updateCaCustomerSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    const user = await updateCaCustomer(req.params.id, clientId, firmId, validationResult.data);
+
+    res.status(200).json({
+      success: true,
+      data: user,
+      message: 'User updated successfully',
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update user',
+    });
+  }
+});
+
+router.delete('/clients/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+      });
+      return;
+    }
+    const clientId = getClientId(req);
+    const firmId = getFirmId(req);
+    await deleteCaCustomer(req.params.id, clientId, firmId);
+
+    res.status(200).json({
+      success: true,
+      message: 'User deactivated successfully',
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(404).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to delete user',
+    });
+  }
+});
+
 export default router;
 
