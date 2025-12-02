@@ -1,10 +1,8 @@
 import { z } from 'zod';
-import { DocumentType, PaymentMethod } from '@prisma/client';
+import { PaymentMethod } from '@prisma/client';
 
 export const uploadClientDocumentSchema = z.object({
-  documentType: z.nativeEnum(DocumentType, {
-    errorMap: () => ({ message: 'Invalid document type' }),
-  }),
+  documentType: z.string().min(1, 'Document type is required'),
   serviceId: z.string().uuid('Invalid service ID').optional(),
   description: z.string().optional(),
 });

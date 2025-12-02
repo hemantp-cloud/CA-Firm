@@ -8,7 +8,7 @@ import crypto from 'crypto';
  * Only shows data for their customers
  */
 export async function getCaDashboard(clientId: string, firmId: string) {
-  // Get user count (only USER role under this client)
+  // Get client count (only CLIENT role users under this CA)
   const userCount = await prisma.user.count({
     where: {
       firmId,

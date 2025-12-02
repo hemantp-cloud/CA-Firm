@@ -22,11 +22,11 @@ async function main() {
   });
   console.log(`✅ Firm ready: ${firm.name} (ID: ${firm.id})\n`);
 
-  // 2. Create or Update CA user (super admin)
-  console.log('👤 Creating/Updating CA user...');
-  const hashedPassword = await bcrypt.hash('Pandey3466@', 10);
+  // 2. Create or Update Admin user
+  console.log('👤 Creating/Updating Admin user...');
+  const hashedAdminPassword = await bcrypt.hash('Pandey3466@', 10);
 
-  const caUser = await prisma.user.upsert({
+  const adminUser = await prisma.user.upsert({
     where: {
       firmId_email: {
         firmId: firm.id,
@@ -34,16 +34,16 @@ async function main() {
       },
     },
     update: {
-      password: hashedPassword,
+      password: hashedAdminPassword,
       role: 'ADMIN',
       isActive: true,
       firmId: firm.id,
     },
     create: {
       firmId: firm.id,
-      clientId: null, // CA has no clientId
+      clientId: null,
       email: 'hemant.p@10x.in',
-      password: hashedPassword,
+      password: hashedAdminPassword,
       name: 'CA Admin',
       role: 'ADMIN',
       twoFactorEnabled: true,
@@ -52,15 +52,51 @@ async function main() {
       isActive: true,
     },
   });
-  console.log(`✅ CA user ready: ${caUser.email}\n`);
+  console.log(`✅ Admin user ready: ${adminUser.email}\n`);
+
+  // 3. Create a test CLIENT user for testing the Client Portal
+  console.log('👥 Creating/Updating test Client user...');
+  const hashedClientPassword = await bcrypt.hash('Client123@', 10);
+
+  const clientUser = await prisma.user.upsert({
+    where: {
+      firmId_email: {
+        firmId: firm.id,
+        email: 'client@test.com',
+      },
+    },
+    update: {
+      password: hashedClientPassword,
+      role: 'CLIENT',
+      isActive: true,
+    },
+    create: {
+      firmId: firm.id,
+      clientId: null,
+      email: 'client@test.com',
+      password: hashedClientPassword,
+      name: 'Test Client',
+      role: 'CLIENT',
+      twoFactorEnabled: false,
+      mustChangePassword: false,
+      emailVerified: true,
+      isActive: true,
+    },
+  });
+  console.log(`✅ Client user ready: ${clientUser.email}\n`);
 
   console.log('🎉 Database seed completed successfully!');
   console.log('\n📊 Summary:');
   console.log(`   - Firm: ${firm.name}`);
-  console.log(`   - Admin User: ${caUser.email}`);
+  console.log(`   - Admin User: ${adminUser.email}`);
+  console.log(`   - Client User: ${clientUser.email}`);
   console.log('\n🔐 Login Credentials:');
+  console.log('\n   ADMIN:');
   console.log(`   Email: hemant.p@10x.in`);
   console.log(`   Password: Pandey3466@`);
+  console.log('\n   CLIENT (for testing upload):');
+  console.log(`   Email: client@test.com`);
+  console.log(`   Password: Client123@`);
 }
 
 main()
@@ -71,4 +107,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

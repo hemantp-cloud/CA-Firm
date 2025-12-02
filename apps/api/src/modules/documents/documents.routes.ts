@@ -59,6 +59,7 @@ const uploadDocumentSchema = z.object({
   documentType: z.string().min(1, 'Document type is required'),
   serviceId: z.string().uuid('Invalid service ID').optional(),
   description: z.string().optional(),
+  userId: z.string().uuid('Invalid user ID').optional(),
 });
 
 /**
@@ -79,6 +80,7 @@ router.post('/upload', upload.single('file'), async (req: AuthenticatedRequest, 
       documentType: req.body.documentType,
       serviceId: req.body.serviceId,
       description: req.body.description,
+      userId: req.body.userId,
     });
 
     if (!validationResult.success) {
@@ -102,6 +104,7 @@ router.post('/upload', upload.single('file'), async (req: AuthenticatedRequest, 
       documentType: string;
       serviceId?: string;
       description?: string;
+      userId?: string;
     } = {
       documentType: validationResult.data.documentType,
     };
@@ -110,6 +113,9 @@ router.post('/upload', upload.single('file'), async (req: AuthenticatedRequest, 
     }
     if (validationResult.data.description) {
       uploadData.description = validationResult.data.description;
+    }
+    if (validationResult.data.userId) {
+      uploadData.userId = validationResult.data.userId;
     }
     const document = await uploadDocument(userContext, req.file, uploadData);
 
@@ -219,6 +225,57 @@ router.get('/:id/download', async (req: AuthenticatedRequest, res: Response): Pr
     res.status(404).json({
       success: false,
       message: error instanceof Error ? error.message : 'Document not found',
+    });
+  }
+});
+
+/**
+ * PUT /api/documents/:id/status
+ * Update document status
+ */
+router.put('/:id/status', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.params.id) {
+      res.status(400).json({
+        success: false,
+        message: 'Document ID is required',
+      });
+      return;
+    }
+
+    const { status } = req.body;
+    if (!status) {
+      res.status(400).json({
+        success: false,
+        message: 'Status is required',
+      });
+      return;
+    }
+
+    const userContext = getUserContext(req);
+
+    // Only Admin and CA can update status
+    if (userContext.role !== 'ADMIN' && userContext.role !== 'CA') {
+      res.status(403).json({
+        success: false,
+        message: 'Unauthorized to update status',
+      });
+      return;
+    }
+
+    const { updateDocumentStatus } = require('./documents.service');
+    const document = await updateDocumentStatus(req.params.id, status, userContext);
+
+    res.status(200).json({
+      success: true,
+      data: document,
+      message: 'Document status updated successfully',
+    });
+  } catch (error) {
+    console.error('Update status error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update status',
     });
   }
 });

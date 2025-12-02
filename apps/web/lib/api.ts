@@ -8,15 +8,17 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
+import { getSession } from 'next-auth/react';
+
 // Request interceptor: Get token from localStorage and add Authorization header
 api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
+  async (config: InternalAxiosRequestConfig) => {
     // Get token from localStorage
     if (typeof window !== 'undefined') {
       try {
         // First try to get token directly from localStorage
         let token = localStorage.getItem('token');
-        
+
         // If not found, try to get from auth-storage (Zustand store)
         if (!token) {
           const stored = localStorage.getItem('auth-storage');
@@ -25,7 +27,17 @@ api.interceptors.request.use(
             token = parsed?.state?.token;
           }
         }
-        
+
+        // If still not found, try to get from NextAuth session
+        if (!token) {
+          const session = await getSession();
+          if (session?.accessToken) {
+            token = session.accessToken;
+            // Sync back to localStorage for future requests
+            localStorage.setItem('token', token);
+          }
+        }
+
         // If token exists, adds Authorization: Bearer {token} header
         if (token && config.headers) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -48,12 +60,11 @@ api.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
-    // On 401 error, clears localStorage and redirects to /login (if window exists)
+    // On 401 error, log but don't redirect (let Next.js middleware handle it)
     if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.clear();
-        window.location.href = '/login';
-      }
+      console.error('API returned 401 Unauthorized');
+      // Don't clear localStorage or redirect here - causes redirect loops
+      // The Next.js middleware should handle auth redirects
     }
     // On other errors, returns Promise.reject(error)
     return Promise.reject(error);

@@ -36,13 +36,22 @@ interface DashboardData {
 }
 
 export default function ClientDashboardPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    // Only fetch dashboard data when session is authenticated
+    if (status === "authenticated" && session) {
+      fetchDashboardData()
+    } else if (status === "loading") {
+      // Still loading session, wait
+      setIsLoading(true)
+    } else {
+      // Not authenticated
+      setIsLoading(false)
+    }
+  }, [status, session])
 
   const fetchDashboardData = async () => {
     try {
@@ -51,8 +60,12 @@ export default function ClientDashboardPage() {
       if (response.data.success) {
         setDashboardData(response.data.data)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch dashboard data:", error)
+      // Don't redirect on error to prevent loop
+      if (error.response?.status === 401) {
+        console.error("Authentication failed - token may not be synced yet")
+      }
     } finally {
       setIsLoading(false)
     }

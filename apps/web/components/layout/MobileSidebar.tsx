@@ -1,6 +1,7 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,20 @@ interface MobileSidebarProps {
 
 export default function MobileSidebar({ navigation }: MobileSidebarProps) {
   const pathname = usePathname()
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  if (!isMounted) {
+    return (
+      <Button variant="ghost" size="sm" className="md:hidden">
+        <Menu className="h-5 w-5" />
+        <span className="sr-only">Open menu</span>
+      </Button>
+    )
+  }
 
   return (
     <Sheet>
@@ -51,11 +66,10 @@ export default function MobileSidebar({ navigation }: MobileSidebarProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${
-                    isActive
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${isActive
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
+                    }`}
                 >
                   <Icon className={`h-5 w-5 ${isActive ? "text-white" : "group-hover:text-white"}`} />
                   <span className="text-sm font-medium">{item.label}</span>

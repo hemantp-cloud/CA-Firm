@@ -17,7 +17,7 @@ import {
 import Link from "next/link"
 import api from "@/lib/api"
 
-interface User {
+interface Client {
   id: string
   name: string
   email: string
@@ -37,45 +37,45 @@ interface User {
   }>
 }
 
-export default function UserDetailsPage() {
+export default function ClientDetailsPage() {
   const params = useParams()
   const router = useRouter()
-  const userId = params.id as string
+  const clientId = params.id as string
 
-  const [user, setUser] = useState<User | null>(null)
+  const [client, setClient] = useState<Client | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (userId) {
-      fetchUser()
+    if (clientId) {
+      fetchClient()
     }
-  }, [userId])
+  }, [clientId])
 
-  const fetchUser = async () => {
+  const fetchClient = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get(`/ca/clients/${userId}`)
+      const response = await api.get(`/ca/clients/${clientId}`)
       if (response.data.success) {
-        setUser(response.data.data)
+        setClient(response.data.data)
       }
     } catch (error) {
-      console.error("Failed to fetch user:", error)
+      console.error("Failed to fetch client:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to deactivate this user?")) {
+    if (!confirm("Are you sure you want to deactivate this client?")) {
       return
     }
 
     try {
-      await api.delete(`/ca/clients/${userId}`)
+      await api.delete(`/ca/clients/${clientId}`)
       router.push("/ca/clients")
     } catch (error) {
-      console.error("Failed to delete user:", error)
-      alert("Failed to deactivate user")
+      console.error("Failed to delete client:", error)
+      alert("Failed to deactivate client")
     }
   }
 
@@ -101,12 +101,12 @@ export default function UserDetailsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-gray-500">Loading user details...</p>
+        <p className="text-gray-500">Loading client details...</p>
       </div>
     )
   }
 
-  if (!user) {
+  if (!client) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <p className="text-gray-500 mb-4">Client not found</p>
@@ -129,13 +129,13 @@ export default function UserDetailsPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{user.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{client.name}</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">Client details and services</p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link href={`/ca/clients/${userId}/edit`}>
+            <Link href={`/ca/clients/${clientId}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>
@@ -147,7 +147,7 @@ export default function UserDetailsPage() {
         </div>
       </div>
 
-      {/* User Information */}
+      {/* Client Information */}
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Client Information</h2>
@@ -158,7 +158,7 @@ export default function UserDetailsPage() {
               <UserCircle className="h-5 w-5 text-gray-400 mt-0.5" />
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Name</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.name}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{client.name}</p>
               </div>
             </div>
 
@@ -166,38 +166,38 @@ export default function UserDetailsPage() {
               <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.email}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{client.email}</p>
               </div>
             </div>
 
-            {user.phone && (
+            {client.phone && (
               <div className="flex items-start gap-3">
                 <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Phone</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{user.phone}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{client.phone}</p>
                 </div>
               </div>
             )}
 
-            {user.pan && (
+            {client.pan && (
               <div className="flex items-start gap-3">
                 <p className="text-sm text-gray-500 dark:text-gray-400">PAN</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.pan}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{client.pan}</p>
               </div>
             )}
 
-            {user.aadhar && (
+            {client.aadhar && (
               <div className="flex items-start gap-3">
                 <p className="text-sm text-gray-500 dark:text-gray-400">Aadhar</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.aadhar}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{client.aadhar}</p>
               </div>
             )}
 
-            {user.address && (
+            {client.address && (
               <div className="flex items-start gap-3 md:col-span-2">
                 <p className="text-sm text-gray-500 dark:text-gray-400">Address</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.address}</p>
+                <p className="font-medium text-gray-900 dark:text-white">{client.address}</p>
               </div>
             )}
 
@@ -205,19 +205,19 @@ export default function UserDetailsPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
               <Badge
                 className={
-                  user.isActive
+                  client.isActive
                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                     : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                 }
               >
-                {user.isActive ? "Active" : "Inactive"}
+                {client.isActive ? "Active" : "Inactive"}
               </Badge>
             </div>
 
             <div className="flex items-start gap-3">
               <p className="text-sm text-gray-500 dark:text-gray-400">Last Login</p>
               <p className="font-medium text-gray-900 dark:text-white">
-                {formatDate(user.lastLoginAt)}
+                {formatDate(client.lastLoginAt)}
               </p>
             </div>
           </div>
@@ -228,11 +228,11 @@ export default function UserDetailsPage() {
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Services ({user.services.length})
+            Services ({client.services.length})
           </h2>
         </CardHeader>
         <CardContent>
-          {user.services.length === 0 ? (
+          {client.services.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
               <p>No services found for this client</p>
@@ -249,7 +249,7 @@ export default function UserDetailsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {user.services.map((service) => (
+                {client.services.map((service) => (
                   <TableRow key={service.id}>
                     <TableCell className="font-medium">{service.title}</TableCell>
                     <TableCell>{formatStatus(service.type)}</TableCell>

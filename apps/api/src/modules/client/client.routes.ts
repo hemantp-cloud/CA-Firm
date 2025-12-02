@@ -6,6 +6,9 @@ import {
   getClientServiceById,
   getClientDocuments,
   uploadClientDocument,
+  uploadDraftDocument,
+  submitDocuments,
+  deleteDraftDocument,
   getClientInvoices,
   getClientInvoiceById,
   recordClientPayment,
@@ -216,6 +219,129 @@ router.post('/documents', upload.single('file'), async (req: AuthenticatedReques
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to upload document',
+    });
+  }
+});
+
+/**
+ * POST /api/client/documents/draft
+ * Upload document as DRAFT
+ */
+router.post('/documents/draft', upload.single('file'), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        message: 'File is required',
+      });
+      return;
+    }
+
+    const validationResult = uploadClientDocumentSchema.safeParse({
+      documentType: req.body.documentType,
+      serviceId: req.body.serviceId,
+      description: req.body.description,
+    });
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationResult.error.errors,
+      });
+      return;
+    }
+
+    const userId = getUserId(req);
+    const firmId = getFirmId(req);
+    const document = await uploadDraftDocument(
+      userId,
+      firmId,
+      req.file as Express.Multer.File,
+      validationResult.data.documentType as string,
+      (validationResult.data.serviceId as string | undefined) || null,
+      (validationResult.data.description as string | undefined) || null
+    );
+
+    res.status(201).json({
+      success: true,
+      data: document,
+      message: 'Document uploaded as draft successfully',
+    });
+  } catch (error) {
+    console.error('Upload draft document error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to upload draft document',
+    });
+  }
+});
+
+/**
+ * POST /api/client/documents/submit
+ * Submit draft documents
+ */
+router.post('/documents/submit', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { documentIds } = req.body;
+
+    if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'Document IDs array is required',
+      });
+      return;
+    }
+
+    const userId = getUserId(req);
+    const firmId = getFirmId(req);
+    const submittedDocs = await submitDocuments(userId, firmId, documentIds);
+
+    res.status(200).json({
+      success: true,
+      data: submittedDocs,
+      message: 'Documents submitted successfully',
+    });
+  } catch (error) {
+    console.error('Submit documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to submit documents',
+    });
+  }
+});
+
+/**
+ * DELETE /api/client/documents/draft/:id
+ * Delete draft document
+ */
+router.delete('/documents/draft/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      res.status(400).json({
+        success: false,
+        message: 'Document ID is required',
+      });
+      return;
+    }
+
+    const userId = getUserId(req);
+    const firmId = getFirmId(req);
+
+    const result = await deleteDraftDocument(userId, firmId, id);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Draft document deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete draft document error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to delete draft document',
     });
   }
 });

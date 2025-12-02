@@ -1,13 +1,15 @@
 // CA Firm Management System - Prisma Schema
-// Single tenant system with CA -> CLIENT -> USER hierarchy
+// Role Hierarchy: ADMIN -> CA (Chartered Accountants) -> CLIENT (End Customers)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  // directUrl is optional - only needed for Supabase connection pooling
 }
 
 // ============================================
@@ -190,6 +192,7 @@ model User {
   services          Service[]         // Services belonging to this user (if CLIENT role)
   tasks             Task[]
   documents         Document[]
+  assignedDocuments Document[]        @relation("AssignedDocuments") // Documents assigned to this user
   invoices          Invoice[]
   activityLogs      ActivityLog[]
 
@@ -260,34 +263,59 @@ model Task {
   @@index([dueDate])
 }
 
+enum DocumentStatus {
+  PENDING
+  IN_PROGRESS
+  REVIEWING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
 model Document {
-  id          String       @id @default(uuid())
-  firmId      String
-  userId      String       // Document belongs to CLIENT
-  serviceId   String?      // Optional: linked to a service
-  fileName    String
-  fileType    String       // MIME type
-  fileSize    BigInt       // Size in bytes
-  storagePath String       // Path to file in storage
+  id           String         @id @default(uuid())
+  firmId       String
+  userId       String         // Document belongs to CLIENT
+  serviceId    String?        // Optional: linked to a service
+  fileName     String
+  fileType     String         // MIME type
+  fileSize     BigInt         // Size in bytes
+  storagePath  String         // Path to file in storage
+  folderPath   String?        // Organized folder path: ClientName/DocumentType/
   documentType DocumentType?
-  description String?
-  version     Int          @default(1)
-  isApproved  Boolean      @default(false)
-  approvedAt  DateTime?
-  uploadedAt  DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  description  String?
+  version      Int            @default(1)
+  status       DocumentStatus @default(PENDING)
+  
+  // New fields for draft/submit workflow
+  uploadStatus String         @default("DRAFT") // "DRAFT" or "SUBMITTED"
+  submittedAt  DateTime?      // When client confirmed upload
+  assignedTo   String?        // Admin/CA who picked this work
+  
+  approvedAt   DateTime?
+  uploadedAt   DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Hide/Restore functionality (Recycle Bin pattern)
+  hiddenFrom   String[]       @default([])  // Array of user IDs who hid this document
+  isDeleted    Boolean        @default(false)  // Permanent deletion flag (Admin only)
+  deletedAt    DateTime?      // When permanently deleted
+  deletedBy    String?        // Admin user ID who deleted it
 
   // Relations
-  firm    Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  firm         Firm           @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service      Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  assignedToUser User?        @relation("AssignedDocuments", fields: [assignedTo], references: [id], onDelete: SetNull)
+  activityLogs ActivityLog[]
 
   @@map("documents")
   @@index([firmId])
   @@index([userId])
   @@index([serviceId])
   @@index([documentType])
-  @@index([isApproved])
+  @@index([uploadStatus])
+  @@index([assignedTo])
 }
 
 model Invoice {
@@ -369,8 +397,9 @@ model ActivityLog {
   id         String   @id @default(uuid())
   firmId     String
   userId     String?  // NULL for system actions
-  action     String   // CREATE, UPDATE, DELETE, LOGIN, etc.
-  entityType String   // User, Service, Invoice, etc.
+  documentId String?  // Related document (if applicable)
+  action     String   // CREATE, UPDATE, DELETE, LOGIN, UPLOAD, SUBMIT, ASSIGN, etc.
+  entityType String   // User, Service, Invoice, Document, etc.
   entityId   String?
   entityName String?
   details    Json?    // Additional details as JSON
@@ -379,12 +408,14 @@ model ActivityLog {
   createdAt  DateTime @default(now())
 
   // Relations
-  firm Firm  @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firm     Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("activity_logs")
   @@index([firmId])
   @@index([userId])
+  @@index([documentId])
   @@index([entityType])
   @@index([createdAt])
 }

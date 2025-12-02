@@ -201,7 +201,7 @@ export async function getClientDocuments(userId: string, firmId: string, filters
     where.documentType = filters.type;
   }
 
-  return await (prisma as any).document.findMany({
+  const documents = await (prisma as any).document.findMany({
     where,
     include: {
       service: {
@@ -215,6 +215,12 @@ export async function getClientDocuments(userId: string, firmId: string, filters
       uploadedAt: 'desc',
     },
   });
+
+  // Convert BigInt fields to strings for JSON serialization
+  return documents.map((doc: any) => ({
+    ...doc,
+    fileSize: doc.fileSize?.toString() || '0',
+  }));
 }
 
 /**
@@ -244,7 +250,227 @@ export async function uploadClientDocument(
     } as any,
   });
 
-  return document;
+  // Convert BigInt to string for JSON serialization
+  return {
+    ...document,
+    fileSize: document.fileSize.toString(),
+  };
+}
+
+/**
+ * Upload document as DRAFT (Phase 1 of two-stage upload)
+ */
+export async function uploadDraftDocument(
+  userId: string,
+  firmId: string,
+  fileData: any,
+  documentType: string,
+  serviceId: string | null,
+  description: string | null
+) {
+  const { getTempFilePath } = await import('../../shared/utils/file-storage');
+  const fs = await import('fs/promises');
+  const path = await import('path');
+
+  // Generate document ID
+  const documentId = `draft_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Get temp file path
+  const tempPath = getTempFilePath(userId, documentId, fileData.originalname || fileData.name);
+
+  // Ensure temp directory exists
+  const tempDir = path.dirname(tempPath);
+  await fs.mkdir(tempDir, { recursive: true });
+
+  // Save uploaded file to temp storage
+  // Multer memoryStorage provides buffer
+  if (fileData.buffer) {
+    await fs.writeFile(tempPath, fileData.buffer);
+  } else {
+    throw new Error('No file buffer available');
+  }
+
+  // Create document record with DRAFT status
+  const document = await prisma.document.create({
+    data: {
+      firmId,
+      userId,
+      serviceId: serviceId || null,
+      fileName: fileData.originalname || fileData.name || 'document.pdf',
+      fileType: fileData.mimetype || 'application/pdf',
+      fileSize: BigInt(fileData.size || 0),
+      storagePath: tempPath,
+      documentType: documentType as any,
+      description: description || null,
+      uploadStatus: 'DRAFT',
+    } as any,
+  });
+
+  // Convert BigInt to string for JSON serialization
+  return {
+    ...document,
+    fileSize: document.fileSize.toString(),
+  };
+}
+
+/**
+ * Submit draft documents (Phase 2 of two-stage upload)
+ */
+export async function submitDocuments(
+  userId: string,
+  firmId: string,
+  documentIds: string[]
+) {
+  const {
+    createClientFolder,
+    moveFromTempToPermanent,
+    getFolderPath,
+    getPermanentFilePath,
+    fileExists
+  } = await import('../../shared/utils/file-storage');
+  const { createActivityLog } = await import('../activity-log/activity-log.service');
+
+  // Get user details for folder name
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const submittedDocuments = [];
+
+  for (const documentId of documentIds) {
+    // Get document
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!document) {
+      throw new Error(`Document ${documentId} not found`);
+    }
+
+    if (document.userId !== userId) {
+      throw new Error(`Unauthorized access to document ${documentId}`);
+    }
+
+    if (document.uploadStatus !== 'DRAFT') {
+      throw new Error(`Document ${documentId} is not in DRAFT status`);
+    }
+
+    // Check if file exists at the stored path
+    const fileExistsAtPath = await fileExists(document.storagePath);
+
+    if (!fileExistsAtPath) {
+      // File doesn't exist at stored path - might be an old upload
+      // Delete the document record and skip
+      await prisma.document.delete({
+        where: { id: documentId },
+      });
+      throw new Error(`File not found for document ${document.fileName}. Please re-upload the document.`);
+    }
+
+    // Create client folder structure
+    const documentType = document.documentType || 'OTHER';
+    await createClientFolder(user.name, documentType);
+
+    // Get permanent file path
+    const permanentPath = getPermanentFilePath(user.name, documentType, document.fileName);
+    const folderPath = getFolderPath(user.name, documentType);
+
+    // Move file from temp to permanent
+    await moveFromTempToPermanent(document.storagePath, permanentPath);
+
+    // Update document status
+    const updatedDocument = await prisma.document.update({
+      where: { id: documentId },
+      data: {
+        uploadStatus: 'SUBMITTED',
+        submittedAt: new Date(),
+        storagePath: permanentPath,
+        folderPath: folderPath,
+      },
+    });
+
+    // Create activity log
+    await createActivityLog({
+      firmId,
+      userId,
+      documentId,
+      action: 'SUBMIT',
+      entityType: 'Document',
+      entityId: documentId,
+      entityName: document.fileName,
+      details: {
+        documentType,
+        fileName: document.fileName,
+      },
+    });
+
+    submittedDocuments.push({
+      ...updatedDocument,
+      fileSize: updatedDocument.fileSize.toString(),
+    });
+  }
+
+  // Broadcast SSE event to Admin and CA users
+  const sseService = (await import('../sse/sse.service')).default;
+  sseService.broadcastToRoles(firmId, ['ADMIN', 'CA'], 'documents-submitted', {
+    clientName: user.name,
+    clientId: userId,
+    count: submittedDocuments.length,
+    documents: submittedDocuments.map(doc => ({
+      id: doc.id,
+      fileName: doc.fileName,
+      documentType: doc.documentType,
+    })),
+  });
+
+  return submittedDocuments;
+}
+
+/**
+ * Delete draft document
+ */
+export async function deleteDraftDocument(
+  userId: string,
+  firmId: string,
+  documentId: string
+) {
+  const { deleteFile } = await import('../../shared/utils/file-storage');
+
+  // Get document
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.userId !== userId) {
+    throw new Error('Unauthorized access to document');
+  }
+
+  if (document.firmId !== firmId) {
+    throw new Error('Document does not belong to your firm');
+  }
+
+  if (document.uploadStatus !== 'DRAFT') {
+    throw new Error('Can only delete documents in DRAFT status');
+  }
+
+  // Delete file from storage
+  await deleteFile(document.storagePath);
+
+  // Delete document record
+  await prisma.document.delete({
+    where: { id: documentId },
+  });
+
+  return { success: true, message: 'Draft document deleted successfully' };
 }
 
 /**

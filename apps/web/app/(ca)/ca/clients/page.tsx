@@ -23,7 +23,7 @@ import {
 import Link from "next/link"
 import api from "@/lib/api"
 
-interface User {
+interface Client {
   id: string
   name: string
   email: string
@@ -33,49 +33,49 @@ interface User {
   lastLoginAt: string | null
 }
 
-export default function CAUsersPage() {
-  const [users, setUsers] = useState<User[]>([])
+export default function CAClientsPage() {
+  const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
-    fetchUsers()
+    fetchClients()
   }, [])
 
-  const fetchUsers = async () => {
+  const fetchClients = async () => {
     try {
       setIsLoading(true)
       const response = await api.get("/ca/clients")
       if (response.data.success) {
-        setUsers(response.data.data)
+        setClients(response.data.data)
       }
     } catch (error) {
-      console.error("Failed to fetch users:", error)
+      console.error("Failed to fetch clients:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to deactivate this user?")) {
+    if (!confirm("Are you sure you want to deactivate this client?")) {
       return
     }
 
     try {
       await api.delete(`/ca/clients/${id}`)
-      fetchUsers()
+      fetchClients()
     } catch (error) {
-      console.error("Failed to delete user:", error)
-      alert("Failed to deactivate user")
+      console.error("Failed to delete client:", error)
+      alert("Failed to deactivate client")
     }
   }
 
-  const filteredUsers = users.filter((user) => {
+  const filteredClients = clients.filter((client) => {
     if (!searchQuery.trim()) return true
     const query = searchQuery.toLowerCase()
     return (
-      user.name.toLowerCase().includes(query) ||
-      user.email.toLowerCase().includes(query)
+      client.name.toLowerCase().includes(query) ||
+      client.email.toLowerCase().includes(query)
     )
   })
 
@@ -125,11 +125,11 @@ export default function CAUsersPage() {
         </CardContent>
       </Card>
 
-      {/* Users Table */}
+      {/* Clients Table */}
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            All Clients ({filteredUsers.length})
+            All Clients ({filteredClients.length})
           </h2>
         </CardHeader>
         <CardContent>
@@ -152,7 +152,7 @@ export default function CAUsersPage() {
                     Loading clients...
                   </TableCell>
                 </TableRow>
-              ) : filteredUsers.length === 0 ? (
+              ) : filteredClients.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8">
                     <div className="flex flex-col items-center gap-2">
@@ -167,27 +167,27 @@ export default function CAUsersPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.phone || "-"}</TableCell>
+                filteredClients.map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell className="font-medium">{client.name}</TableCell>
+                    <TableCell>{client.email}</TableCell>
+                    <TableCell>{client.phone || "-"}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{user.servicesCount}</Badge>
+                      <Badge variant="outline">{client.servicesCount}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
                         className={
-                          user.isActive
+                          client.isActive
                             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                             : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                         }
                       >
-                        {user.isActive ? "Active" : "Inactive"}
+                        {client.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-gray-500 dark:text-gray-400">
-                      {formatDate(user.lastLoginAt)}
+                      {formatDate(client.lastLoginAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -198,19 +198,19 @@ export default function CAUsersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/ca/clients/${user.id}`} className="cursor-pointer">
+                            <Link href={`/ca/clients/${client.id}`} className="cursor-pointer">
                               <Eye className="h-4 w-4 mr-2" />
                               View
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/ca/clients/${user.id}/edit`} className="cursor-pointer">
+                            <Link href={`/ca/clients/${client.id}/edit`} className="cursor-pointer">
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => handleDelete(user.id)}
+                            onClick={() => handleDelete(client.id)}
                             className="text-red-600 dark:text-red-400"
                           >
                             Deactivate

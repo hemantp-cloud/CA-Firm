@@ -276,7 +276,10 @@ router.get('/documents', async (req: AuthenticatedRequest, res: Response): Promi
 
     res.status(200).json({
       success: true,
-      data: documents,
+      data: documents.map((doc: any) => ({
+        ...doc,
+        fileSize: doc.fileSize?.toString() || '0',
+      })),
     });
   } catch (error) {
     console.error('Get documents error:', error);

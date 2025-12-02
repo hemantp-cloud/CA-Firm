@@ -10,6 +10,7 @@ export interface AuthenticatedUser {
   userId: string;
   firmId: string;
   email: string;
+  name: string;
   role: string;
   clientId: string | null;
 }
@@ -66,6 +67,7 @@ export const authenticate = async (
         id: true,
         clientId: true,
         isActive: true,
+        name: true,
       } as any,
     }) as any;
 
@@ -90,6 +92,7 @@ export const authenticate = async (
       userId: decoded.userId,
       firmId: decoded.firmId,
       email: decoded.email,
+      name: user.name,
       role: decoded.role,
       clientId: user.clientId || null,
     };

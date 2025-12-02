@@ -48,7 +48,7 @@ export async function getAllDocuments(userContext: {
     where.documentType = filters.type as any;
   }
 
-  return await prisma.document.findMany({
+  const documents = await prisma.document.findMany({
     where,
     include: {
       user: {
@@ -68,6 +68,12 @@ export async function getAllDocuments(userContext: {
       uploadedAt: 'desc',
     },
   });
+
+  // Convert BigInt fields to strings for JSON serialization
+  return documents.map((doc: any) => ({
+    ...doc,
+    fileSize: doc.fileSize?.toString() || '0',
+  }));
 }
 
 /**
@@ -133,6 +139,11 @@ export async function getDocumentById(
 /**
  * Upload document
  */
+import { triggerDocumentEvent } from '../../shared/services/pusher.service';
+
+/**
+ * Upload document
+ */
 export async function uploadDocument(
   userContext: {
     id: string;
@@ -145,16 +156,35 @@ export async function uploadDocument(
     documentType: string;
     serviceId?: string;
     description?: string;
+    userId?: string;
   }
 ) {
   // Determine userId - CLIENT uploads for themselves, ADMIN/CA can specify
   let userId = userContext.id;
 
   if (userContext.role === 'ADMIN' || userContext.role === 'CA') {
-    // ADMIN/CA can upload for any customer under their firm/CA
-    // For now, we'll use the uploader's userId
-    // In future, add userId to request body for ADMIN/CA
-    userId = userContext.id;
+    if (documentData.userId) {
+      // Verify that this user belongs to the firm/CA
+      const whereUser: any = {
+        id: documentData.userId,
+        firmId: userContext.firmId,
+        role: 'CLIENT' as any,
+      };
+
+      if (userContext.role === 'CA' && userContext.clientId) {
+        whereUser.clientId = userContext.clientId;
+      }
+
+      const targetUser = await prisma.user.findFirst({
+        where: whereUser,
+      });
+
+      if (!targetUser) {
+        throw new Error('Invalid user ID or user not found');
+      }
+      userId = documentData.userId;
+    }
+    // If no userId provided, it defaults to uploader (CA/ADMIN themselves)
   }
 
   // Generate unique filename
@@ -184,6 +214,7 @@ export async function uploadDocument(
       storagePath,
       documentType: documentData.documentType as any,
       description: documentData.description || null,
+      status: 'PENDING',
     } as any,
     include: {
       user: {
@@ -201,7 +232,81 @@ export async function uploadDocument(
     } as any,
   });
 
+  // Log activity
+  await prisma.activityLog.create({
+    data: {
+      firmId: userContext.firmId,
+      userId: userContext.id,
+      action: 'UPLOAD',
+      entityType: 'DOCUMENT',
+      entityId: document.id,
+      entityName: document.fileName,
+      details: {
+        documentType: documentData.documentType,
+        uploadedFor: userId,
+      },
+    },
+  });
+
+  // Trigger Pusher event
+  await triggerDocumentEvent(userContext.firmId, userId, 'document-uploaded', document);
+
   return document;
+}
+
+/**
+ * Update document status
+ */
+export async function updateDocumentStatus(
+  id: string,
+  status: string,
+  userContext: {
+    id: string;
+    role: string;
+    firmId: string;
+  }
+) {
+  const document = await prisma.document.findUnique({
+    where: { id },
+    include: { user: true },
+  });
+
+  if (!document) {
+    throw new Error('Document not found');
+  }
+
+  if (document.firmId !== userContext.firmId) {
+    throw new Error('Unauthorized');
+  }
+
+  const updatedDocument = await prisma.document.update({
+    where: { id },
+    data: {
+      status: status as any,
+      approvedAt: status === 'APPROVED' ? new Date() : null,
+    } as any,
+  });
+
+  // Log activity
+  await prisma.activityLog.create({
+    data: {
+      firmId: userContext.firmId,
+      userId: userContext.id,
+      action: 'UPDATE_STATUS',
+      entityType: 'DOCUMENT',
+      entityId: document.id,
+      entityName: document.fileName,
+      details: {
+        oldStatus: (document as any).status,
+        newStatus: status,
+      },
+    },
+  });
+
+  // Trigger Pusher event
+  await triggerDocumentEvent(userContext.firmId, document.userId, 'document-updated', updatedDocument);
+
+  return updatedDocument;
 }
 
 /**

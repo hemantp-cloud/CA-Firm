@@ -33,31 +33,8 @@ const baseUserSchema = z.object({
   address: z.string().optional(),
 });
 
-export const createUserSchema = baseUserSchema.refine(
-  (data) => {
-    // If role is USER, clientId is required
-    if (data.role === 'CLIENT' && !data.clientId) {
-      return false;
-    }
-    return true;
-  },
-  {
-    message: 'Client is required for CLIENT role',
-    path: ['clientId'],
-  }
-);
+// CLIENT users don't need clientId - they ARE the client
+// Only CA users might need clientId if they belong to a specific client
+export const createUserSchema = baseUserSchema;
 
-export const updateUserSchema = baseUserSchema.partial().refine(
-  (data) => {
-    // If role is being updated to USER, clientId must be provided
-    if (data.role === 'CLIENT' && !data.clientId) {
-      return false;
-    }
-    return true;
-  },
-  {
-    message: 'Client is required for CLIENT role',
-    path: ['clientId'],
-  }
-);
-
+export const updateUserSchema = baseUserSchema.partial();
