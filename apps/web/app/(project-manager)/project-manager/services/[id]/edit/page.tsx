@@ -110,7 +110,7 @@ export default function EditCaServicePage() {
             const response = await api.put(`/services/${serviceId}`, payload)
 
             if (response.data.success) {
-                router.push(`/ca/services/${serviceId}`)
+                router.push(`/project-manager/services/${serviceId}`)
                 router.refresh()
             } else {
                 setError(response.data.message || "Failed to update service")
@@ -140,7 +140,7 @@ export default function EditCaServicePage() {
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/ca/services/${serviceId}`}>
+                    <Link href={`/project-manager/services/${serviceId}`}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back
                     </Link>
@@ -307,7 +307,7 @@ export default function EditCaServicePage() {
                                 )}
                             </Button>
                             <Button type="button" variant="outline" asChild>
-                                <Link href={`/ca/services/${serviceId}`}>Cancel</Link>
+                                <Link href={`/project-manager/services/${serviceId}`}>Cancel</Link>
                             </Button>
                         </div>
                     </form>

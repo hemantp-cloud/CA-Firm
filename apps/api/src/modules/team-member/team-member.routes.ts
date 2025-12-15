@@ -92,6 +92,106 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response): Promi
 });
 
 /**
+ * GET /api/team-member/clients
+ * Get all clients assigned to the current team member (for their own dashboard)
+ * Accessible by: TEAM_MEMBER
+ * NOTE: This MUST be defined before /:id route
+ */
+router.get('/clients', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        const teamMemberId = getUserId(req);
+        const firmId = getFirmId(req);
+        const clients = await getAssignedClients(teamMemberId, firmId);
+
+        res.status(200).json({
+            success: true,
+            data: clients,
+        });
+    } catch (error) {
+        console.error('Get my clients error:', error);
+        res.status(500).json({
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to fetch clients',
+        });
+    }
+});
+
+/**
+ * GET /api/team-member/assigned-clients
+ * Alias for /clients - Get all clients assigned to the current team member
+ * Accessible by: TEAM_MEMBER
+ */
+router.get('/assigned-clients', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        const teamMemberId = getUserId(req);
+        const firmId = getFirmId(req);
+        const clients = await getAssignedClients(teamMemberId, firmId);
+
+        res.status(200).json({
+            success: true,
+            data: clients,
+        });
+    } catch (error) {
+        console.error('Get assigned clients error:', error);
+        res.status(500).json({
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to fetch assigned clients',
+        });
+    }
+});
+
+/**
+ * GET /api/team-member/services
+ * Get all services for clients assigned to the current team member
+ * Accessible by: TEAM_MEMBER
+ */
+router.get('/services', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        const teamMemberId = getUserId(req);
+        const firmId = getFirmId(req);
+
+        const prisma = require('../../shared/utils/prisma').default;
+
+        // Get clients assigned to this team member
+        const clientAssignments = await prisma.clientAssignment.findMany({
+            where: { teamMemberId },
+            select: { clientId: true },
+        });
+
+        const clientIds = clientAssignments.map((ca: any) => ca.clientId);
+
+        // Get services for those clients
+        const services = await prisma.service.findMany({
+            where: {
+                firmId,
+                clientId: { in: clientIds },
+            },
+            include: {
+                client: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        res.status(200).json({
+            success: true,
+            data: services,
+        });
+    } catch (error) {
+        console.error('Get my services error:', error);
+        res.status(500).json({
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to fetch services',
+        });
+    }
+});
+
+/**
  * GET /api/team-member
  * List all team members in the firm
  * Accessible by: ADMIN, PROJECT_MANAGER, SUPER_ADMIN
@@ -467,29 +567,6 @@ router.get('/:id/assigned-clients', authenticate, async (req: AuthenticatedReque
     }
 });
 
-/**
- * GET /api/team-member/clients
- * Get all clients assigned to the current team member (for their own dashboard)
- * Accessible by: TEAM_MEMBER
- */
-router.get('/clients', authenticate, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    try {
-        const teamMemberId = getUserId(req);
-        const firmId = getFirmId(req);
-        const clients = await getAssignedClients(teamMemberId, firmId);
-
-        res.status(200).json({
-            success: true,
-            data: clients,
-        });
-    } catch (error) {
-        console.error('Get my clients error:', error);
-        res.status(500).json({
-            success: false,
-            message: error instanceof Error ? error.message : 'Failed to fetch clients',
-        });
-    }
-});
 
 /**
  * GET /api/team-member/client/:clientId/team-members

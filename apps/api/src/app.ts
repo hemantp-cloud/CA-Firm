@@ -24,6 +24,11 @@ import clientDocumentsRoutes from './modules/client/client.documents.routes';
 import teamMemberRoutes from './modules/team-member/team-member.routes';
 import teamMemberDocumentsRoutes from './modules/team-member/team-member.documents.routes';
 
+// Enhanced Service Workflow Routes (NEW)
+import serviceWorkflowRoutes from './modules/service-workflow/service-workflow.routes';
+import serviceRequestRoutes from './modules/service-request/service-request.routes';
+import clientPMAssignmentRoutes from './modules/client-pm-assignment/client-pm-assignment.routes';
+
 // Configure environment variables
 dotenv.config();
 
@@ -72,6 +77,10 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/admin', adminDocumentsRoutes);
 // app.use('/api/ca', caDocumentsRoutes);
 
+// Enhanced Service Workflow Routes (NEW)
+app.use('/api/service-workflow', serviceWorkflowRoutes);
+app.use('/api/service-requests', serviceRequestRoutes);
+app.use('/api', clientPMAssignmentRoutes); // Adds routes under /api/clients/:clientId/pm-assignments and /api/project-managers/:pmId/clients
 
 export default app;
 

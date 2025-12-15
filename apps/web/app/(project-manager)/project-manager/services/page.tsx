@@ -76,7 +76,7 @@ export default function CaServicesPage() {
             if (dateFrom) params.append("dateFrom", dateFrom)
             if (dateTo) params.append("dateTo", dateTo)
 
-            const response = await api.get(`/ca/services?${params.toString()}`)
+            const response = await api.get(`/project-manager/services?${params.toString()}`)
             if (response.data.success) {
                 setServices(response.data.data)
             }
@@ -342,7 +342,7 @@ export default function CaServicesPage() {
                                         <TableRow key={service.id}>
                                             <TableCell className="font-medium">
                                                 <Link
-                                                    href={`/ca/services/${service.id}`}
+                                                    href={`/project-manager/services/${service.id}`}
                                                     className="hover:underline text-blue-600 dark:text-blue-400"
                                                 >
                                                     {service.title}
@@ -361,7 +361,7 @@ export default function CaServicesPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button variant="ghost" size="sm" asChild>
-                                                    <Link href={`/ca/services/${service.id}`}>View</Link>
+                                                    <Link href={`/project-manager/services/${service.id}`}>View</Link>
                                                 </Button>
                                             </TableCell>
                                         </TableRow>

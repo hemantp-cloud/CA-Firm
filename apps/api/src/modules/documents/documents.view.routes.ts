@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { authenticate, AuthenticatedRequest } from '../../shared/middleware/auth.middleware';
 import prisma from '../../shared/utils/prisma';
 import fs from 'fs';
+import path from 'path';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.get('/view/:id', async (req: AuthenticatedRequest, res: Response): Promis
         const { id } = req.params;
         const userId = req.user?.userId;
         const userRole = req.user?.role;
+        const firmId = req.user?.firmId;
 
         if (!id) {
             res.status(400).json({
@@ -26,7 +28,7 @@ router.get('/view/:id', async (req: AuthenticatedRequest, res: Response): Promis
             return;
         }
 
-        if (!userId) {
+        if (!userId || !firmId) {
             res.status(401).json({
                 success: false,
                 message: 'Unauthorized',
@@ -34,11 +36,11 @@ router.get('/view/:id', async (req: AuthenticatedRequest, res: Response): Promis
             return;
         }
 
-        // Get document
-        const document = await prisma.document.findUnique({
-            where: { id },
+        // Get document (firmId check for security)
+        const document = await prisma.document.findFirst({
+            where: { id, firmId },
             include: {
-                user: {
+                client: {
                     select: {
                         id: true,
                         name: true,
@@ -55,11 +57,13 @@ router.get('/view/:id', async (req: AuthenticatedRequest, res: Response): Promis
             return;
         }
 
-        // Check permissions
+        // Check permissions - Owner, Admin, PM, or document's client
         const canView =
-            document.userId === userId || // Owner
+            document.uploadedById === userId || // Owner (uploader)
+            document.clientId === userId || // Document's client
             userRole === 'ADMIN' || // Admin can view all
-            userRole === 'CA'; // CA can view all
+            userRole === 'SUPER_ADMIN' || // Super Admin can view all
+            userRole === 'PROJECT_MANAGER'; // Project Manager can view all in firm
 
         if (!canView) {
             res.status(403).json({
@@ -75,14 +79,12 @@ router.get('/view/:id', async (req: AuthenticatedRequest, res: Response): Promis
 
         // If not found, try with process.cwd() prefix
         if (!fileExists) {
-            const path = require('path');
             filePath = path.join(process.cwd(), document.storagePath);
             fileExists = fs.existsSync(filePath);
         }
 
         // If still not found, try uploads directory
         if (!fileExists) {
-            const path = require('path');
             filePath = path.join(process.cwd(), 'uploads', document.storagePath);
             fileExists = fs.existsSync(filePath);
         }
@@ -90,8 +92,8 @@ router.get('/view/:id', async (req: AuthenticatedRequest, res: Response): Promis
         if (!fileExists) {
             console.error('File not found. Tried paths:', {
                 original: document.storagePath,
-                withCwd: require('path').join(process.cwd(), document.storagePath),
-                withUploads: require('path').join(process.cwd(), 'uploads', document.storagePath),
+                withCwd: path.join(process.cwd(), document.storagePath),
+                withUploads: path.join(process.cwd(), 'uploads', document.storagePath),
             });
             res.status(404).json({
                 success: false,
@@ -125,6 +127,7 @@ router.get('/download/:id', async (req: AuthenticatedRequest, res: Response): Pr
         const { id } = req.params;
         const userId = req.user?.userId;
         const userRole = req.user?.role;
+        const firmId = req.user?.firmId;
 
         if (!id) {
             res.status(400).json({
@@ -134,7 +137,7 @@ router.get('/download/:id', async (req: AuthenticatedRequest, res: Response): Pr
             return;
         }
 
-        if (!userId) {
+        if (!userId || !firmId) {
             res.status(401).json({
                 success: false,
                 message: 'Unauthorized',
@@ -142,9 +145,9 @@ router.get('/download/:id', async (req: AuthenticatedRequest, res: Response): Pr
             return;
         }
 
-        // Get document
-        const document = await prisma.document.findUnique({
-            where: { id },
+        // Get document (firmId check for security)
+        const document = await prisma.document.findFirst({
+            where: { id, firmId },
         });
 
         if (!document) {
@@ -157,9 +160,11 @@ router.get('/download/:id', async (req: AuthenticatedRequest, res: Response): Pr
 
         // Check permissions
         const canDownload =
-            document.userId === userId || // Owner
+            document.uploadedById === userId || // Owner (uploader)
+            document.clientId === userId || // Document's client
             userRole === 'ADMIN' || // Admin can download all
-            userRole === 'CA'; // CA can download all
+            userRole === 'SUPER_ADMIN' || // Super Admin can download all
+            userRole === 'PROJECT_MANAGER'; // Project Manager can download all in firm
 
         if (!canDownload) {
             res.status(403).json({
@@ -175,14 +180,12 @@ router.get('/download/:id', async (req: AuthenticatedRequest, res: Response): Pr
 
         // If not found, try with process.cwd() prefix
         if (!fileExists) {
-            const path = require('path');
             filePath = path.join(process.cwd(), document.storagePath);
             fileExists = fs.existsSync(filePath);
         }
 
         // If still not found, try uploads directory
         if (!fileExists) {
-            const path = require('path');
             filePath = path.join(process.cwd(), 'uploads', document.storagePath);
             fileExists = fs.existsSync(filePath);
         }
@@ -190,8 +193,8 @@ router.get('/download/:id', async (req: AuthenticatedRequest, res: Response): Pr
         if (!fileExists) {
             console.error('File not found. Tried paths:', {
                 original: document.storagePath,
-                withCwd: require('path').join(process.cwd(), document.storagePath),
-                withUploads: require('path').join(process.cwd(), 'uploads', document.storagePath),
+                withCwd: path.join(process.cwd(), document.storagePath),
+                withUploads: path.join(process.cwd(), 'uploads', document.storagePath),
             });
             res.status(404).json({
                 success: false,

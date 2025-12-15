@@ -1,0 +1,486 @@
+# CA FIRM MANAGEMENT SYSTEM - PROJECT FILE STRUCTURE
+# Generated: December 12, 2025
+# Purpose: AI Training Context - Shows complete project organization
+# Note: Excludes node_modules, .next, dist, .git (build artifacts)
+
+================================================================================
+ROOT DIRECTORY
+================================================================================
+
+CA Firm Management/
+├── .documentation/                    # Project documentation folder
+│   ├── PROJECT_CONTEXT_FOR_AI.md      # Main AI context document
+│   ├── PROJECT_STATUS_ANALYSIS.md     # Current status & roadmap analysis
+│   ├── structure.txt                  # This file
+│   └── ADMIN_PORTAL_IMPLEMENTATION.md # Admin portal docs
+│
+├── .env                               # Environment variables (root)
+├── .env.example                       # Example env template
+├── .gitignore                         # Git ignore rules
+├── README.md                          # Project readme
+│
+├── apps/                              # Main application code
+│   ├── api/                           # Backend Express API
+│   └── web/                           # Frontend Next.js App
+│
+└── docker/                            # Docker configuration (if any)
+
+
+================================================================================
+BACKEND API: apps/api/
+================================================================================
+
+apps/api/
+├── package.json                       # Backend dependencies
+├── package-lock.json                  # Lock file
+├── tsconfig.json                      # TypeScript config
+│
+├── prisma/                            # Database layer
+│   ├── schema.prisma                  # ⭐ DATABASE SCHEMA (all models)
+│   ├── seed.ts                        # Database seeding script
+│   └── migrations/                    # Migration history
+│       ├── 20251126122614_rebuild_schema/
+│       ├── 20251128100703_rename_roles/
+│       ├── 20251128130104_add_user_fields/
+│       ├── 20251202132500_add_hide_restore_fields/
+│       ├── 20251203105026_add_trainee_role_and_assignments/
+│       ├── 20251205102355_initial_new_schema/
+│       └── migration_lock.toml
+│
+├── scripts/                           # Utility scripts
+│   ├── create-super-admin.ts          # Create Super Admin user
+│   ├── setup-initial-data.ts          # Initial data setup
+│   ├── drop-all-tables.ts             # Reset database
+│   ├── backup-database.ps1            # Backup script
+│   └── reset-database-manual.sql      # Manual SQL reset
+│
+└── src/                               # Source code
+    ├── app.ts                         # ⭐ EXPRESS APP SETUP (routes mounting)
+    ├── server.ts                      # Server entry point
+    │
+    ├── database/
+    │   └── seed.ts                    # Alternative seed file
+    │
+    ├── modules/                       # ⭐ API ROUTE MODULES
+    │   │
+    │   ├── auth/                      # Authentication
+    │   │   ├── auth.routes.ts         # Login, OTP, password routes
+    │   │   ├── auth.service.ts        # Auth business logic
+    │   │   └── auth.types.ts          # Type definitions
+    │   │
+    │   ├── super-admin/               # Super Admin routes
+    │   │   ├── super-admin.routes.ts  # CRUD for all users
+    │   │   └── super-admin.documents.routes.ts
+    │   │
+    │   ├── admin/                     # Admin routes
+    │   │   ├── admin.routes.ts        # Admin CRUD operations
+    │   │   ├── admin.service.ts       # Business logic
+    │   │   └── admin.validation.ts    # Zod schemas
+    │   │
+    │   ├── project-manager/           # Project Manager (PM) routes
+    │   │   ├── project-manager.routes.ts      # PM CRUD
+    │   │   └── project-manager.documents.routes.ts
+    │   │
+    │   ├── team-member/               # Team Member routes
+    │   │   ├── team-member.routes.ts  # TM CRUD & assignments
+    │   │   └── team-member.documents.routes.ts
+    │   │
+    │   ├── client/                    # Client routes
+    │   │   ├── client.routes.ts       # Client dashboard, services
+    │   │   ├── client.service.ts      # Business logic
+    │   │   ├── client.validation.ts   # Zod schemas
+    │   │   └── client.documents.routes.ts
+    │   │
+    │   ├── clients/                   # Generic clients module
+    │   │   ├── clients.routes.ts      
+    │   │   └── clients.service.ts     
+    │   │
+    │   ├── services/                  # Service management
+    │   │   ├── services.routes.ts     # Service CRUD
+    │   │   ├── services.service.ts    
+    │   │   └── services.validation.ts 
+    │   │
+    │   ├── documents/                 # Document management
+    │   │   ├── documents.routes.ts    # Upload, download
+    │   │   ├── documents.service.ts   
+    │   │   ├── documents.admin.routes.ts
+    │   │   ├── documents.ca.routes.ts 
+    │   │   └── documents.view.routes.ts
+    │   │
+    │   ├── invoices/                  # Invoice management
+    │   │   ├── invoices.routes.ts     # Invoice CRUD
+    │   │   ├── invoices.service.ts    
+    │   │   └── invoices.validation.ts 
+    │   │
+    │   ├── tasks/                     # Task management
+    │   │   ├── tasks.routes.ts        
+    │   │   └── tasks.service.ts       
+    │   │
+    │   ├── analytics/                 # Analytics/Reports
+    │   │   └── analytics.routes.ts    
+    │   │
+    │   ├── activity/                  # Activity tracking
+    │   │   ├── activity.routes.ts     
+    │   │   └── activity.service.ts    
+    │   │
+    │   ├── activity-log/              # Activity logs
+    │   │   ├── activity-log.routes.ts 
+    │   │   └── activity-log.service.ts
+    │   │
+    │   └── sse/                       # Server-Sent Events
+    │       ├── sse.routes.ts          
+    │       └── sse.service.ts         
+    │
+    ├── shared/                        # Shared utilities
+    │   ├── middleware/
+    │   │   ├── auth.middleware.ts     # ⭐ AUTH MIDDLEWARE (JWT, roles)
+    │   │   ├── role.middleware.ts     
+    │   │   └── validation.middleware.ts
+    │   │
+    │   ├── utils/
+    │   │   ├── prisma.ts              # Prisma client instance
+    │   │   ├── jwt.ts                 # JWT utilities
+    │   │   ├── password.ts            # Password hashing
+    │   │   ├── otp.ts                 # OTP generation
+    │   │   └── helpers.ts             
+    │   │
+    │   └── services/
+    │       └── storage.service.ts     # File storage
+    │
+    ├── services/                      # Core services
+    │   ├── email.service.ts           # ⭐ EMAIL SERVICE (OTP, notifications)
+    │   └── auditLog.service.ts        # Audit logging
+    │
+    └── utils/
+        ├── helpers.ts                 
+        └── constants.ts               
+
+
+================================================================================
+FRONTEND WEB: apps/web/
+================================================================================
+
+apps/web/
+├── package.json                       # Frontend dependencies
+├── next.config.ts                     # Next.js configuration
+├── tsconfig.json                      # TypeScript config
+├── postcss.config.js                  # PostCSS config
+├── tailwind.config.ts                 # TailwindCSS config
+│
+├── public/                            # Static assets
+│   └── favicon.ico
+│
+├── lib/                               # Utility libraries
+│   ├── api.ts                         # ⭐ AXIOS API CLIENT
+│   ├── auth.ts                        # Auth utilities
+│   └── utils.ts                       # Helper functions
+│
+├── components/                        # ⭐ REUSABLE COMPONENTS
+│   │
+│   ├── ui/                            # UI Component Library
+│   │   ├── button.tsx                 # Button component
+│   │   ├── input.tsx                  # Input field
+│   │   ├── label.tsx                  # Form label
+│   │   ├── card.tsx                   # Card container
+│   │   ├── badge.tsx                  # Status badge
+│   │   ├── table.tsx                  # Table component
+│   │   ├── tabs.tsx                   # Tab navigation
+│   │   ├── dialog.tsx                 # Modal dialog
+│   │   ├── dropdown-menu.tsx          # Dropdown menus
+│   │   ├── select.tsx                 # Select dropdown
+│   │   ├── checkbox.tsx               # Checkbox
+│   │   ├── textarea.tsx               # Text area
+│   │   ├── sheet.tsx                  # Slide-over panel
+│   │   ├── alert-dialog.tsx           # Confirmation dialog
+│   │   └── theme-toggle.tsx           # Dark mode toggle
+│   │
+│   ├── layout/
+│   │   └── MobileSidebar.tsx          # Mobile navigation
+│   │
+│   ├── auth/
+│   │   └── AuthProvider.tsx           # Auth context provider
+│   │
+│   ├── providers/
+│   │   ├── SessionProvider.tsx        # NextAuth provider
+│   │   └── ThemeProvider.tsx          # Theme provider
+│   │
+│   ├── charts/
+│   │   ├── BarChart.tsx               # Bar chart
+│   │   └── LineChart.tsx              # Line chart
+│   │
+│   ├── services/
+│   │   ├── ServicesList.tsx           
+│   │   ├── ServiceCard.tsx            
+│   │   └── ServiceForm.tsx            
+│   │
+│   ├── documents/
+│   │   ├── DocumentUpload.tsx         
+│   │   └── DocumentList.tsx           
+│   │
+│   ├── invoices/
+│   │   └── InvoiceList.tsx            
+│   │
+│   ├── clients/
+│   │   └── ClientCard.tsx             
+│   │
+│   ├── tasks/
+│   │   ├── TaskCard.tsx               
+│   │   ├── TaskList.tsx               
+│   │   └── TaskForm.tsx               
+│   │
+│   └── marketing/
+│       ├── Header.tsx                 
+│       └── Footer.tsx                 
+│
+└── app/                               # ⭐ NEXT.JS APP ROUTER PAGES
+    │
+    ├── globals.css                    # Global styles
+    ├── layout.tsx                     # Root layout
+    ├── page.tsx                       # Landing page
+    │
+    ├── api/                           # Next.js API routes
+    │   └── auth/
+    │       └── [...nextauth]/
+    │           └── route.ts           # NextAuth handler
+    │
+    ├── (auth)/                        # ⭐ AUTH PAGES (Route Group)
+    │   ├── layout.tsx                 # Auth layout
+    │   ├── login/
+    │   │   └── page.tsx               # Login page
+    │   ├── verify-otp/
+    │   │   └── page.tsx               # OTP verification
+    │   ├── forgot-password/
+    │   │   └── page.tsx               # Forgot password
+    │   ├── reset-password/
+    │   │   └── page.tsx               # Reset password
+    │   └── change-password/
+    │       └── page.tsx               # Force change password
+    │
+    ├── super-admin/                   # ⭐ SUPER ADMIN PORTAL
+    │   ├── layout.tsx                 # Super Admin layout (blue theme)
+    │   ├── dashboard/
+    │   │   └── page.tsx               # Dashboard with KPIs
+    │   ├── admins/
+    │   │   ├── page.tsx               # Admin list
+    │   │   ├── new/
+    │   │   │   └── page.tsx           # Create admin
+    │   │   └── [id]/
+    │   │       └── edit/
+    │   │           └── page.tsx       # Edit admin
+    │   ├── project-managers/
+    │   │   ├── page.tsx               # PM list
+    │   │   ├── new/
+    │   │   │   └── page.tsx           # Create PM
+    │   │   └── [id]/
+    │   │       └── edit/
+    │   │           └── page.tsx       # Edit PM
+    │   ├── team-members/
+    │   │   ├── page.tsx               # TM list
+    │   │   ├── new/
+    │   │   │   └── page.tsx           # Create TM
+    │   │   └── [id]/
+    │   │       └── edit/
+    │   │           └── page.tsx       # Edit TM
+    │   ├── clients/
+    │   │   ├── page.tsx               # Client list
+    │   │   ├── new/
+    │   │   │   └── page.tsx           # Create client
+    │   │   └── [id]/
+    │   │       └── edit/
+    │   │           └── page.tsx       # Edit client
+    │   ├── documents/
+    │   │   └── page.tsx               # Document hierarchy
+    │   ├── audit-logs/
+    │   │   └── page.tsx               # Activity logs
+    │   └── settings/
+    │       ├── page.tsx               # Settings
+    │       └── firm/
+    │           └── page.tsx           # Firm settings
+    │
+    ├── (admin)/                       # ⭐ ADMIN PORTAL (Route Group)
+    │   ├── layout.tsx                 # Admin layout
+    │   └── admin/
+    │       ├── dashboard/
+    │       │   └── page.tsx           # Admin dashboard
+    │       ├── project-managers/
+    │       │   ├── page.tsx           # PM list
+    │       │   ├── new/
+    │       │   │   └── page.tsx       
+    │       │   └── [id]/
+    │       │       ├── page.tsx       # View PM
+    │       │       └── edit/
+    │       │           └── page.tsx   # Edit PM
+    │       ├── team-members/
+    │       │   ├── page.tsx           # TM list
+    │       │   ├── new/
+    │       │   │   └── page.tsx       
+    │       │   ├── create/
+    │       │   │   └── page.tsx       
+    │       │   └── [id]/
+    │       │       ├── page.tsx       # View TM
+    │       │       ├── edit/
+    │       │       │   └── page.tsx   
+    │       │       └── assign-clients/
+    │       │           └── page.tsx   # Assign clients to TM
+    │       ├── client/
+    │       │   ├── page.tsx           # Client list
+    │       │   ├── new/
+    │       │   │   └── page.tsx       
+    │       │   └── [id]/
+    │       │       ├── page.tsx       # View client
+    │       │       └── edit/
+    │       │           └── page.tsx   
+    │       ├── services/
+    │       │   ├── page.tsx           # Service list
+    │       │   ├── new/
+    │       │   │   └── page.tsx       
+    │       │   └── [id]/
+    │       │       ├── page.tsx       
+    │       │       └── edit/
+    │       │           └── page.tsx   
+    │       ├── invoices/
+    │       │   └── page.tsx           # Invoice list
+    │       ├── documents/
+    │       │   └── page.tsx           # Document hierarchy
+    │       ├── activity/
+    │       │   └── page.tsx           # Activity logs
+    │       ├── reports/
+    │       │   └── page.tsx           # Reports (placeholder)
+    │       └── settings/
+    │           └── page.tsx           # Settings
+    │
+    ├── (project-manager)/             # ⭐ PROJECT MANAGER PORTAL
+    │   ├── layout.tsx                 # PM layout (green theme)
+    │   └── project-manager/
+    │       ├── dashboard/
+    │       │   └── page.tsx           # PM dashboard
+    │       ├── clients/
+    │       │   ├── page.tsx           # Managed clients
+    │       │   ├── new/
+    │       │   │   └── page.tsx       
+    │       │   └── [id]/
+    │       │       ├── page.tsx       
+    │       │       └── edit/
+    │       │           └── page.tsx   
+    │       ├── team-members/
+    │       │   ├── page.tsx           # Team members
+    │       │   ├── new/
+    │       │   │   └── page.tsx       
+    │       │   └── [id]/
+    │       │       ├── page.tsx       
+    │       │       ├── edit/
+    │       │       │   └── page.tsx   
+    │       │       └── assign-clients/
+    │       │           └── page.tsx   
+    │       ├── services/
+    │       │   ├── page.tsx           # Services
+    │       │   ├── new/
+    │       │   │   └── page.tsx       
+    │       │   └── [id]/
+    │       │       ├── page.tsx       
+    │       │       └── edit/
+    │       │           └── page.tsx   
+    │       ├── documents/
+    │       │   └── page.tsx           # Documents
+    │       ├── client-documents/
+    │       │   └── page.tsx           # Client doc hierarchy
+    │       ├── invoices/
+    │       │   └── page.tsx           # Invoices
+    │       ├── profile/
+    │       │   └── page.tsx           # Own profile
+    │       └── settings/
+    │           └── page.tsx           # Settings
+    │
+    ├── (team-member)/                 # ⭐ TEAM MEMBER PORTAL
+    │   ├── layout.tsx                 # TM layout (teal theme)
+    │   └── team-member/
+    │       ├── page.tsx               # Redirect page
+    │       ├── dashboard/
+    │       │   └── page.tsx           # TM dashboard
+    │       ├── clients/
+    │       │   ├── page.tsx           # Assigned clients
+    │       │   └── [id]/
+    │       │       └── page.tsx       # Client details
+    │       ├── services/
+    │       │   └── page.tsx           # Services
+    │       ├── documents/
+    │       │   └── page.tsx           # Documents
+    │       └── settings/
+    │           └── page.tsx           # Profile & password
+    │
+    └── (client)/                      # ⭐ CLIENT PORTAL
+        ├── layout.tsx                 # Client layout (violet theme)
+        └── client/
+            ├── dashboard/
+            │   └── page.tsx           # Client dashboard
+            ├── services/
+            │   ├── page.tsx           # Service list
+            │   └── [id]/
+            │       └── page.tsx       # Service details + timeline
+            ├── documents/
+            │   └── page.tsx           # Document upload/download
+            ├── invoices/
+            │   ├── page.tsx           # Invoice list
+            │   └── [id]/
+            │       ├── page.tsx       # Invoice details
+            │       └── pay/
+            │           └── page.tsx   # Payment page
+            └── profile/
+                └── page.tsx           # Profile & password
+
+
+================================================================================
+KEY FILES QUICK REFERENCE
+================================================================================
+
+BACKEND:
+- Database Schema:    apps/api/prisma/schema.prisma
+- App Setup:          apps/api/src/app.ts
+- Auth Middleware:    apps/api/src/shared/middleware/auth.middleware.ts
+- Email Service:      apps/api/src/services/email.service.ts
+
+API ROUTES BY ROLE:
+- Auth:               apps/api/src/modules/auth/auth.routes.ts
+- Super Admin:        apps/api/src/modules/super-admin/super-admin.routes.ts
+- Admin:              apps/api/src/modules/admin/admin.routes.ts
+- Project Manager:    apps/api/src/modules/project-manager/project-manager.routes.ts
+- Team Member:        apps/api/src/modules/team-member/team-member.routes.ts
+- Client:             apps/api/src/modules/client/client.routes.ts
+
+FRONTEND:
+- API Client:         apps/web/lib/api.ts
+- Root Layout:        apps/web/app/layout.tsx
+- UI Components:      apps/web/components/ui/
+
+PORTAL LAYOUTS:
+- Super Admin:        apps/web/app/super-admin/layout.tsx
+- Admin:              apps/web/app/(admin)/layout.tsx
+- Project Manager:    apps/web/app/(project-manager)/layout.tsx
+- Team Member:        apps/web/app/(team-member)/layout.tsx
+- Client:             apps/web/app/(client)/layout.tsx
+
+
+================================================================================
+FILE COUNT SUMMARY
+================================================================================
+
+Backend (apps/api):
+├── Route files:      ~15 files
+├── Service files:    ~12 files
+├── Middleware:       ~3 files
+├── Utilities:        ~6 files
+└── Total src:        ~40 files
+
+Frontend (apps/web):
+├── Page files:       89 pages
+├── UI Components:    15 files
+├── Other components: ~20 files
+├── Lib utilities:    ~3 files
+└── Total:            ~130 files
+
+Total Project Files: ~170+ source files (excluding node_modules, builds)
+
+
+================================================================================
+END OF STRUCTURE
+================================================================================

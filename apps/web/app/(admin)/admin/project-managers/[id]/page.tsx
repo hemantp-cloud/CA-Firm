@@ -1,290 +1,219 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, UserCircle, Mail, Phone, MapPin, Building2, Eye } from "lucide-react"
+import { use } from "react"
+import { ArrowLeft, Edit, Trash2, User, Mail, Phone, CreditCard, Calendar, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import Link from "next/link"
 import api from "@/lib/api"
+import { useRouter } from "next/navigation"
 
-interface Client {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  address: string | null
-  gstin: string | null
-  pan: string | null
-  contactPerson: string | null
-  isActive: boolean
-  createdAt: string
-  users: Array<{
+interface ProjectManager {
     id: string
     name: string
     email: string
     phone: string | null
-    role: string
+    pan: string | null
     isActive: boolean
-  }>
+    createdAt: string
+    lastLoginAt: string | null
 }
 
-export default function ClientDetailsPage() {
-  const params = useParams()
-  const router = useRouter()
-  const clientId = params.id as string
+export default function ProjectManagerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params)
+    const router = useRouter()
+    const [pm, setPm] = useState<ProjectManager | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
 
-  const [client, setClient] = useState<Client | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+    useEffect(() => {
+        fetchPM()
+    }, [id])
 
-  useEffect(() => {
-    if (clientId) {
-      fetchClient()
-    }
-  }, [clientId])
-
-  const fetchClient = async () => {
-    try {
-      setIsLoading(true)
-      const response = await api.get(`/admin/ca/${clientId}`)
-      if (response.data.success) {
-        setClient(response.data.data)
-      }
-    } catch (error) {
-      console.error("Failed to fetch ca:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!confirm("Are you sure you want to deactivate this ca?")) {
-      return
+    const fetchPM = async () => {
+        try {
+            setIsLoading(true)
+            const response = await api.get(`/admin/project-managers/${id}`)
+            if (response.data.success) {
+                setPm(response.data.data)
+            }
+        } catch (error) {
+            console.error("Failed to fetch project manager:", error)
+        } finally {
+            setIsLoading(false)
+        }
     }
 
-    try {
-      await api.delete(`/admin/ca/${clientId}`)
-      router.push("/admin/ca")
-    } catch (error) {
-      console.error("Failed to delete ca:", error)
-      alert("Failed to deactivate ca")
-    }
-  }
+    const handleDeactivate = async () => {
+        if (!confirm("Are you sure you want to deactivate this Project Manager? They won't be able to log in.")) {
+            return
+        }
 
-  if (isLoading) {
+        try {
+            const response = await api.delete(`/admin/project-managers/${id}`)
+            if (response.data.success) {
+                alert("Project Manager deactivated successfully!")
+                router.push("/admin/project-managers")
+            }
+        } catch (error) {
+            console.error("Failed to deactivate:", error)
+            alert("Failed to deactivate Project Manager")
+        }
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                    <p className="text-gray-500">Loading project manager details...</p>
+                </div>
+            </div>
+        )
+    }
+
+    if (!pm) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                    <p className="text-gray-500">Project Manager not found</p>
+                    <Button asChild className="mt-4">
+                        <Link href="/admin/project-managers">Back to Project Managers</Link>
+                    </Button>
+                </div>
+            </div>
+        )
+    }
+
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-gray-500">Loading ca details...</p>
-      </div>
-    )
-  }
-
-  if (!client) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <p className="text-gray-500 mb-4">ca not found</p>
-        <Button asChild>
-          <Link href="/admin/ca">Back to ca</Link>
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/admin/ca">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{client.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">ca details and clients</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href={`/admin/ca/${clientId}/edit`}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Link>
-          </Button>
-          <Button variant="outline" onClick={handleDelete} className="text-red-600 hover:text-red-700">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Deactivate
-          </Button>
-        </div>
-      </div>
-
-      {/* Client Information */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Client Information</h2>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-start gap-3">
-              <Building2 className="h-5 w-5 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Company Name</p>
-                <p className="font-medium text-gray-900 dark:text-white">{client.name}</p>
-              </div>
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="sm" asChild>
+                        <Link href="/admin/project-managers">
+                            <ArrowLeft className="h-4 w-4 mr-2" />
+                            Back
+                        </Link>
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{pm.name}</h1>
+                        <p className="text-gray-600 dark:text-gray-400 mt-1">Project Manager Details</p>
+                    </div>
+                </div>
+                <div className="flex gap-2">
+                    <Button asChild variant="outline">
+                        <Link href={`/admin/project-managers/${pm.id}/edit`}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                        </Link>
+                    </Button>
+                </div>
             </div>
 
-            {client.contactPerson && (
-              <div className="flex items-start gap-3">
-                <UserCircle className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Contact Person</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{client.contactPerson}</p>
-                </div>
-              </div>
-            )}
-
-            {client.email && (
-              <div className="flex items-start gap-3">
-                <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{client.email}</p>
-                </div>
-              </div>
-            )}
-
-            {client.phone && (
-              <div className="flex items-start gap-3">
-                <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Phone</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{client.phone}</p>
-                </div>
-              </div>
-            )}
-
-            {client.address && (
-              <div className="flex items-start gap-3 md:col-span-2">
-                <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Address</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{client.address}</p>
-                </div>
-              </div>
-            )}
-
-            {client.pan && (
-              <div className="flex items-start gap-3">
-                <p className="text-sm text-gray-500 dark:text-gray-400">PAN</p>
-                <p className="font-medium text-gray-900 dark:text-white">{client.pan}</p>
-              </div>
-            )}
-
-            {client.gstin && (
-              <div className="flex items-start gap-3">
-                <p className="text-sm text-gray-500 dark:text-gray-400">GSTIN</p>
-                <p className="font-medium text-gray-900 dark:text-white">{client.gstin}</p>
-              </div>
-            )}
-
-            <div className="flex items-start gap-3">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
-              <Badge
-                className={
-                  client.isActive
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                }
-              >
-                {client.isActive ? "Active" : "Inactive"}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Users List */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Clients ({client.users.length})
-            </h2>
-            <Button asChild size="sm">
-              <Link href={`/admin/client/new?clientId=${clientId}`}>
-                <UserCircle className="h-4 w-4 mr-2" />
-                Add Client
-              </Link>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {client.users.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <UserCircle className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-              <p>No users found for this client</p>
-              <Button asChild variant="outline" size="sm" className="mt-4">
-                <Link href={`/admin/client/new?clientId=${clientId}`}>Add First User</Link>
-              </Button>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {client.users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.phone || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{user.role}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          user.isActive
+            {/* Status Badge */}
+            <div>
+                <Badge
+                    className={
+                        pm.isActive
                             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                             : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                        }
-                      >
-                        {user.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/admin/client/${user.id}`}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
+                    }
+                >
+                    {pm.isActive ? "Active" : "Inactive"}
+                </Badge>
+            </div>
 
+            {/* Information */}
+            <Card>
+                <CardHeader>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Contact Information</h2>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex items-start gap-3">
+                            <User className="h-5 w-5 text-gray-400 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name</p>
+                                <p className="text-gray-900 dark:text-white">{pm.name}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
+                                <p className="text-gray-900 dark:text-white">{pm.email}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</p>
+                                <p className="text-gray-900 dark:text-white">{pm.phone || "-"}</p>
+                            </div>
+                        </div>
+
+                        {pm.pan && (
+                            <div className="flex items-start gap-3">
+                                <CreditCard className="h-5 w-5 text-gray-400 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">PAN</p>
+                                    <p className="text-gray-900 dark:text-white">{pm.pan}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-start gap-3">
+                            <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Joined</p>
+                                <p className="text-gray-900 dark:text-white">
+                                    {new Date(pm.createdAt).toLocaleDateString()}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Login</p>
+                                <p className="text-gray-900 dark:text-white">
+                                    {pm.lastLoginAt ? new Date(pm.lastLoginAt).toLocaleString() : "Never"}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Danger Zone */}
+            {pm.isActive && (
+                <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
+                    <CardHeader>
+                        <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">Danger Zone</h2>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="font-medium text-gray-900 dark:text-white">Deactivate Project Manager</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    User won't be able to log in (can be reactivated from edit page)
+                                </p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                className="bg-yellow-600 text-white hover:bg-yellow-700"
+                                onClick={handleDeactivate}
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Deactivate
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    )
+}

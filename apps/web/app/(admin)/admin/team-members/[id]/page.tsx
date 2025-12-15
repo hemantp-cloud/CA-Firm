@@ -2,73 +2,72 @@
 
 import { useState, useEffect } from "react"
 import { use } from "react"
-import { ArrowLeft, Edit, Users, Mail, Phone, MapPin, Calendar, Shield } from "lucide-react"
+import { ArrowLeft, Edit, Trash2, User, Mail, Phone, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
 import Link from "next/link"
 import api from "@/lib/api"
+import { useRouter } from "next/navigation"
 
 interface AssignedClient {
-    assignmentId: string
-    client: {
-        id: string
-        name: string
-        email: string
-        phone: string | null
-        isActive: boolean
-    }
-    assignedBy: {
-        id: string
-        name: string
-        email: string
-    }
+    id: string
+    clientId: string
+    clientName: string
+    clientEmail: string
+    assignedById: string
     assignedAt: string
-    notes: string | null
 }
 
-interface Trainee {
+interface TeamMember {
     id: string
     name: string
     email: string
     phone: string | null
-    pan: string | null
-    aadhar: string | null
-    address: string | null
     isActive: boolean
     createdAt: string
     lastLoginAt: string | null
-    assignedClients: AssignedClient[]
+    assignedClients?: AssignedClient[]
 }
 
-export default function TraineeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function TeamMemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params)
-    const [trainee, setTrainee] = useState<Trainee | null>(null)
+    const router = useRouter()
+    const [tm, setTm] = useState<TeamMember | null>(null)
     const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
-        fetchTrainee()
+        fetchTM()
     }, [id])
 
-    const fetchTrainee = async () => {
+    const fetchTM = async () => {
         try {
             setIsLoading(true)
-            const response = await api.get(`/trainees/${id}`)
+            const response = await api.get(`/admin/team-members/${id}`)
             if (response.data.success) {
-                setTrainee(response.data.data)
+                setTm(response.data.data)
             }
         } catch (error) {
-            console.error("Failed to fetch trainee:", error)
+            console.error("Failed to fetch team member:", error)
         } finally {
             setIsLoading(false)
+        }
+    }
+
+    const handleDeactivate = async () => {
+        if (!confirm("Are you sure you want to deactivate this Team Member? They won't be able to log in.")) {
+            return
+        }
+
+        try {
+            const response = await api.delete(`/admin/team-members/${id}`)
+            if (response.data.success) {
+                alert("Team Member deactivated successfully!")
+                router.push("/admin/team-members")
+            }
+        } catch (error) {
+            console.error("Failed to deactivate:", error)
+            alert("Failed to deactivate Team Member")
         }
     }
 
@@ -76,17 +75,17 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
         return (
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
-                    <p className="text-gray-500">Loading trainee details...</p>
+                    <p className="text-gray-500">Loading team member details...</p>
                 </div>
             </div>
         )
     }
 
-    if (!trainee) {
+    if (!tm) {
         return (
             <div className="flex items-center justify-center h-96">
                 <div className="text-center">
-                    <p className="text-gray-500">Trainee not found</p>
+                    <p className="text-gray-500">Team Member not found</p>
                     <Button asChild className="mt-4">
                         <Link href="/admin/team-members">Back to Team Members</Link>
                     </Button>
@@ -101,27 +100,27 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="sm" asChild>
-                        <Link href="/admin/trainees">
+                        <Link href="/admin/team-members">
                             <ArrowLeft className="h-4 w-4 mr-2" />
                             Back
                         </Link>
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{trainee.name}</h1>
-                        <p className="text-gray-600 dark:text-gray-400 mt-1">Trainee Details</p>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{tm.name}</h1>
+                        <p className="text-gray-600 dark:text-gray-400 mt-1">Team Member Details</p>
                     </div>
                 </div>
                 <div className="flex gap-2">
                     <Button asChild variant="outline">
-                        <Link href={`/admin/trainees/${trainee.id}/assign-clients`}>
-                            <Users className="h-4 w-4 mr-2" />
-                            Assign Clients
-                        </Link>
-                    </Button>
-                    <Button asChild>
-                        <Link href={`/admin/trainees/${trainee.id}/edit`}>
+                        <Link href={`/admin/team-members/${tm.id}/edit`}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
+                        </Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                        <Link href={`/admin/team-members/${tm.id}/assign-clients`}>
+                            <Users className="h-4 w-4 mr-2" />
+                            Assign Clients
                         </Link>
                     </Button>
                 </div>
@@ -131,27 +130,35 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
             <div>
                 <Badge
                     className={
-                        trainee.isActive
+                        tm.isActive
                             ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                             : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                     }
                 >
-                    {trainee.isActive ? "Active" : "Inactive"}
+                    {tm.isActive ? "Active" : "Inactive"}
                 </Badge>
             </div>
 
-            {/* Contact Information */}
+            {/* Information */}
             <Card>
                 <CardHeader>
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Contact Information</h2>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="flex items-start gap-3">
+                            <User className="h-5 w-5 text-gray-400 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name</p>
+                                <p className="text-gray-900 dark:text-white">{tm.name}</p>
+                            </div>
+                        </div>
+
                         <div className="flex items-start gap-3">
                             <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
                             <div>
                                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
-                                <p className="text-gray-900 dark:text-white">{trainee.email}</p>
+                                <p className="text-gray-900 dark:text-white">{tm.email}</p>
                             </div>
                         </div>
 
@@ -159,50 +166,16 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
                             <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
                             <div>
                                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</p>
-                                <p className="text-gray-900 dark:text-white">{trainee.phone || "-"}</p>
+                                <p className="text-gray-900 dark:text-white">{tm.phone || "-"}</p>
                             </div>
                         </div>
-
-                        {trainee.address && (
-                            <div className="flex items-start gap-3 md:col-span-2">
-                                <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Address</p>
-                                    <p className="text-gray-900 dark:text-white">{trainee.address}</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {(trainee.pan || trainee.aadhar) && (
-                            <>
-                                {trainee.pan && (
-                                    <div className="flex items-start gap-3">
-                                        <Shield className="h-5 w-5 text-gray-400 mt-0.5" />
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">PAN</p>
-                                            <p className="text-gray-900 dark:text-white">{trainee.pan}</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {trainee.aadhar && (
-                                    <div className="flex items-start gap-3">
-                                        <Shield className="h-5 w-5 text-gray-400 mt-0.5" />
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Aadhar</p>
-                                            <p className="text-gray-900 dark:text-white">{trainee.aadhar}</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
 
                         <div className="flex items-start gap-3">
                             <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
                             <div>
                                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Joined</p>
                                 <p className="text-gray-900 dark:text-white">
-                                    {new Date(trainee.createdAt).toLocaleDateString()}
+                                    {new Date(tm.createdAt).toLocaleDateString()}
                                 </p>
                             </div>
                         </div>
@@ -212,7 +185,7 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
                             <div>
                                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Login</p>
                                 <p className="text-gray-900 dark:text-white">
-                                    {trainee.lastLoginAt ? new Date(trainee.lastLoginAt).toLocaleDateString() : "Never"}
+                                    {tm.lastLoginAt ? new Date(tm.lastLoginAt).toLocaleString() : "Never"}
                                 </p>
                             </div>
                         </div>
@@ -221,70 +194,66 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
             </Card>
 
             {/* Assigned Clients */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
+            {tm.assignedClients && tm.assignedClients.length > 0 && (
+                <Card>
+                    <CardHeader>
                         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                            Assigned Clients ({trainee.assignedClients?.length || 0})
+                            Assigned Clients ({tm.assignedClients.length})
                         </h2>
-                        <Button asChild variant="outline" size="sm">
-                            <Link href={`/admin/trainees/${trainee.id}/assign-clients`}>
-                                <Users className="h-4 w-4 mr-2" />
-                                Manage Assignments
-                            </Link>
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {trainee.assignedClients && trainee.assignedClients.length > 0 ? (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Client Name</TableHead>
-                                    <TableHead>Email</TableHead>
-                                    <TableHead>Phone</TableHead>
-                                    <TableHead>Assigned By</TableHead>
-                                    <TableHead>Assigned On</TableHead>
-                                    <TableHead>Status</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {trainee.assignedClients.map((assignment) => (
-                                    <TableRow key={assignment.assignmentId}>
-                                        <TableCell className="font-medium">{assignment.client.name}</TableCell>
-                                        <TableCell>{assignment.client.email}</TableCell>
-                                        <TableCell>{assignment.client.phone || "-"}</TableCell>
-                                        <TableCell>{assignment.assignedBy.name}</TableCell>
-                                        <TableCell>{new Date(assignment.assignedAt).toLocaleDateString()}</TableCell>
-                                        <TableCell>
-                                            <Badge
-                                                className={
-                                                    assignment.client.isActive
-                                                        ? "bg-green-100 text-green-800"
-                                                        : "bg-gray-100 text-gray-800"
-                                                }
-                                            >
-                                                {assignment.client.isActive ? "Active" : "Inactive"}
-                                            </Badge>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    ) : (
-                        <div className="text-center py-8">
-                            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-500 dark:text-gray-400 mb-4">No clients assigned yet</p>
-                            <Button asChild variant="outline" size="sm">
-                                <Link href={`/admin/trainees/${trainee.id}/assign-clients`}>
-                                    <Users className="h-4 w-4 mr-2" />
-                                    Assign Clients
-                                </Link>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-2">
+                            {tm.assignedClients.map((assignment) => (
+                                <div
+                                    key={assignment.id}
+                                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
+                                >
+                                    <div>
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                            {assignment.clientName}
+                                        </p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                            {assignment.clientEmail}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Assigned on {new Date(assignment.assignedAt).toLocaleDateString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Danger Zone */}
+            {tm.isActive && (
+                <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
+                    <CardHeader>
+                        <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">Danger Zone</h2>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="font-medium text-gray-900 dark:text-white">Deactivate Team Member</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    User won't be able to log in (can be reactivated from edit page)
+                                </p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                className="bg-yellow-600 text-white hover:bg-yellow-700"
+                                onClick={handleDeactivate}
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Deactivate
                             </Button>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }

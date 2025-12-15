@@ -135,7 +135,7 @@ export default function CaInvoicesPage() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="ghost" size="sm" asChild>
-                                                <Link href={`/ca/invoices/${invoice.id}`}>
+                                                <Link href={`/project-manager/invoices/${invoice.id}`}>
                                                     <Eye className="h-4 w-4" />
                                                 </Link>
                                             </Button>

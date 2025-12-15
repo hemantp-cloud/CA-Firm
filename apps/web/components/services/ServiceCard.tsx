@@ -4,8 +4,8 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, User, Building2 } from "lucide-react"
-import Link from "next/link"
+import { Calendar, User, Building2, GripVertical } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface Service {
   id: string
@@ -14,14 +14,12 @@ interface Service {
   status: string
   dueDate: string | null
   feeAmount: number | null
-  user: {
-    id: string
-    name: string
-  }
-  client: {
+  client?: {
     id: string
     name: string
   } | null
+  // Additional optional fields from API
+  currentAssigneeName?: string | null
 }
 
 interface ServiceCardProps {
@@ -30,6 +28,7 @@ interface ServiceCardProps {
 }
 
 export default function ServiceCard({ service, isDragging }: ServiceCardProps) {
+  const router = useRouter()
   const {
     attributes,
     listeners,
@@ -70,49 +69,68 @@ export default function ServiceCard({ service, isDragging }: ServiceCardProps) {
     switch (service.status) {
       case "PENDING":
         return 0
+      case "ASSIGNED":
+        return 10
       case "IN_PROGRESS":
         return 50
       case "UNDER_REVIEW":
         return 75
       case "COMPLETED":
+      case "DELIVERED":
+      case "CLOSED":
         return 100
       default:
         return 0
     }
   }
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Prevent navigation when dragging
+    if (e.defaultPrevented) return
+    router.push(`/project-manager/services/${service.id}`)
+  }
+
   return (
     <Card
       ref={setNodeRef}
       style={style}
-      className="mb-3 hover:shadow-md transition-shadow cursor-pointer"
-      {...attributes}
-      {...listeners}
+      className="mb-3 hover:shadow-md transition-shadow cursor-pointer group"
+      onClick={handleCardClick}
     >
       <CardContent className="p-4 space-y-3">
-        {/* Service Title */}
-        <Link href={`/ca/services/${service.id}`}>
-          <h4 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400">
+        {/* Drag Handle + Service Title */}
+        <div className="flex items-start gap-2">
+          <div
+            className="pt-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="h-4 w-4 text-gray-400" />
+          </div>
+          <h4 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-2 hover:text-blue-600 dark:hover:text-blue-400 flex-1">
             {service.title}
           </h4>
-        </Link>
+        </div>
 
         {/* Service Type */}
         <Badge variant="outline" className="text-xs">
           {formatServiceType(service.type)}
         </Badge>
 
-        {/* User Name */}
-        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-          <User className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{service.user.name}</span>
-        </div>
-
         {/* Client Name */}
         {service.client && (
           <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            <User className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{service.client.name}</span>
+          </div>
+        )}
+
+        {/* Current Assignee */}
+        {service.currentAssigneeName && (
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{service.currentAssigneeName}</span>
           </div>
         )}
 

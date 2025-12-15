@@ -2,9 +2,20 @@
 
 import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, Upload, Download, FileText, Calendar, CheckCircle, Clock, AlertCircle } from "lucide-react"
+import {
+  ArrowLeft,
+  Upload,
+  Download,
+  FileText,
+  Calendar,
+  Loader2,
+  Building2,
+  User,
+  DollarSign,
+  Bell
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -16,6 +27,15 @@ import {
 } from "@/components/ui/table"
 import Link from "next/link"
 import api from "@/lib/api"
+import { toast } from "sonner"
+
+// Import new enhanced workflow components
+import StatusTimeline, { StatusBadge, StatusProgressBar } from "@/components/services/StatusTimeline"
+import {
+  ServiceStatus,
+  STATUS_CONFIG,
+  SERVICE_TYPE_LABELS
+} from "@/types/service-workflow"
 
 interface Service {
   id: string
@@ -24,7 +44,12 @@ interface Service {
   type: string
   status: string
   dueDate: string | null
+  completedAt: string | null
+  feeAmount: number | null
   notes: string | null
+  financialYear: string | null
+  assessmentYear: string | null
+  currentAssigneeName: string | null
   documents: Array<{
     id: string
     fileName: string
@@ -33,13 +58,6 @@ interface Service {
     isFromCA: boolean
   }>
 }
-
-const statusTimeline = [
-  { status: "PENDING", label: "Pending", icon: Clock, color: "text-gray-500" },
-  { status: "IN_PROGRESS", label: "In Progress", icon: AlertCircle, color: "text-blue-500" },
-  { status: "UNDER_REVIEW", label: "Under Review", icon: FileText, color: "text-yellow-500" },
-  { status: "COMPLETED", label: "Completed", icon: CheckCircle, color: "text-green-500" },
-]
 
 export default function ClientServiceDetailsPage() {
   const params = useParams()
@@ -63,6 +81,7 @@ export default function ClientServiceDetailsPage() {
       }
     } catch (error) {
       console.error("Failed to fetch service:", error)
+      toast.error("Failed to load service details")
     } finally {
       setIsLoading(false)
     }
@@ -70,39 +89,42 @@ export default function ClientServiceDetailsPage() {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-"
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     })
   }
 
-  const formatStatus = (status: string) => {
-    return status
-      .split("_")
-      .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-      .join(" ")
+  const formatCurrency = (amount: number | null) => {
+    if (!amount) return "-"
+    return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      PENDING: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
-      IN_PROGRESS: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      UNDER_REVIEW: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-      COMPLETED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  // Client-friendly status messages
+  const getClientStatusMessage = (status: string): string => {
+    const messages: Record<string, string> = {
+      PENDING: "Your service request is pending assignment to a team member.",
+      ASSIGNED: "A team member has been assigned and will begin work soon.",
+      IN_PROGRESS: "Our team is actively working on your service.",
+      WAITING_FOR_CLIENT: "We need some documents or information from you to proceed.",
+      ON_HOLD: "Work is temporarily paused. Please check notes for details.",
+      UNDER_REVIEW: "The work is being reviewed for quality assurance.",
+      CHANGES_REQUESTED: "Minor adjustments are being made.",
+      COMPLETED: "Your service has been completed! Review pending delivery.",
+      DELIVERED: "Your completed work has been delivered to you.",
+      INVOICED: "An invoice has been generated for this service.",
+      CLOSED: "This service is complete and closed.",
+      CANCELLED: "This service has been cancelled.",
     }
-    return colors[status] || colors.PENDING
-  }
-
-  const getCurrentStatusIndex = (status: string) => {
-    return statusTimeline.findIndex((s) => s.status === status)
+    return messages[status] || "Status update pending."
   }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-gray-500">Loading service details...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+        <p className="text-gray-500 ml-2">Loading service details...</p>
       </div>
     )
   }
@@ -118,7 +140,8 @@ export default function ClientServiceDetailsPage() {
     )
   }
 
-  const currentStatusIndex = getCurrentStatusIndex(service.status)
+  const statusConfig = STATUS_CONFIG[service.status as ServiceStatus]
+  const isWaitingForClient = service.status === 'WAITING_FOR_CLIENT'
 
   return (
     <div className="space-y-6">
@@ -130,104 +153,168 @@ export default function ClientServiceDetailsPage() {
             Back
           </Link>
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{service.title}</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Service details and documents</p>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{service.title}</h1>
+            <StatusBadge status={service.status as ServiceStatus} />
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            {SERVICE_TYPE_LABELS[service.type as keyof typeof SERVICE_TYPE_LABELS] || service.type}
+            {service.financialYear && ` • FY ${service.financialYear}`}
+          </p>
         </div>
       </div>
 
+      {/* Waiting for Client Alert */}
+      {isWaitingForClient && (
+        <Card className="border-0 shadow-sm bg-orange-50 dark:bg-orange-900/20 border-l-4 border-l-orange-500">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <Bell className="h-5 w-5 text-orange-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-orange-800 dark:text-orange-200">
+                  Action Required
+                </p>
+                <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                  We need some information or documents from you to continue.
+                  Please check the notes below or contact your assigned team member.
+                </p>
+                <Button size="sm" className="mt-3 bg-orange-600 hover:bg-orange-700" asChild>
+                  <Link href={`/client/documents?serviceId=${serviceId}`}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Documents
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Status Timeline */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Service Progress</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StatusTimeline currentStatus={service.status as ServiceStatus} />
+
+          {/* Status Message for Client */}
+          <div className={`mt-6 p-4 rounded-lg ${statusConfig?.bgColor || 'bg-gray-100'}`}>
+            <p className={`text-sm ${statusConfig?.color || 'text-gray-600'}`}>
+              {getClientStatusMessage(service.status)}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Service Information */}
-      <Card>
+      <Card className="border-0 shadow-sm">
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Service Information</h2>
+          <CardTitle className="text-lg">Service Details</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Type</p>
-              <p className="font-medium text-gray-900 dark:text-white mt-1">
-                {formatStatus(service.type)}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
-              <Badge className={getStatusColor(service.status)}>
-                {formatStatus(service.status)}
-              </Badge>
-            </div>
-            {service.dueDate && (
+            <div className="flex items-start gap-3">
+              <FileText className="h-5 w-5 text-gray-400 mt-0.5" />
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Due Date</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Calendar className="h-4 w-4 text-gray-400" />
+                <p className="text-sm text-gray-500">Service Type</p>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {SERVICE_TYPE_LABELS[service.type as keyof typeof SERVICE_TYPE_LABELS] || service.type}
+                </p>
+              </div>
+            </div>
+
+            {service.dueDate && (
+              <div className="flex items-start gap-3">
+                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-500">Expected Completion</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {formatDate(service.dueDate)}
                   </p>
                 </div>
               </div>
             )}
+
+            {service.completedAt && (
+              <div className="flex items-start gap-3">
+                <Calendar className="h-5 w-5 text-green-500 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-500">Completed On</p>
+                  <p className="font-medium text-green-600">{formatDate(service.completedAt)}</p>
+                </div>
+              </div>
+            )}
+
+            {service.currentAssigneeName && (
+              <div className="flex items-start gap-3">
+                <User className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-500">Assigned To</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {service.currentAssigneeName}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {service.feeAmount && (
+              <div className="flex items-start gap-3">
+                <DollarSign className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-500">Fee Amount</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {formatCurrency(service.feeAmount)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {service.financialYear && (
+              <div className="flex items-start gap-3">
+                <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-500">Financial Year</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    FY {service.financialYear}
+                    {service.assessmentYear && ` / AY ${service.assessmentYear}`}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {service.description && (
               <div className="md:col-span-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Description</p>
-                <p className="text-gray-900 dark:text-white mt-1">{service.description}</p>
+                <p className="text-sm text-gray-500 mb-1">Description</p>
+                <p className="text-gray-900 dark:text-white">{service.description}</p>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Status Timeline */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Status Timeline</h2>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between relative">
-            {statusTimeline.map((item, index) => {
-              const Icon = item.icon
-              const isActive = index <= currentStatusIndex
-              const isCurrent = index === currentStatusIndex
-
-              return (
-                <div key={item.status} className="flex flex-col items-center flex-1 relative z-10">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${isActive
-                        ? isCurrent
-                          ? "bg-purple-600 border-purple-600 text-white"
-                          : "bg-green-600 border-green-600 text-white"
-                        : "bg-gray-100 border-gray-300 text-gray-400"
-                      }`}
-                  >
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <p
-                    className={`text-xs mt-2 text-center ${isActive ? "text-gray-900 dark:text-white font-medium" : "text-gray-500"
-                      }`}
-                  >
-                    {item.label}
-                  </p>
-                  {index < statusTimeline.length - 1 && (
-                    <div
-                      className={`absolute top-6 left-full w-full h-0.5 ${isActive ? "bg-green-600" : "bg-gray-300"
-                        }`}
-                      style={{ width: "calc(100% - 3rem)", marginLeft: "1.5rem" }}
-                    />
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Notes from Firm */}
+      {service.notes && (
+        <Card className="border-0 shadow-sm bg-blue-50 dark:bg-blue-900/20">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2 text-blue-800 dark:text-blue-200">
+              <Building2 className="h-5 w-5" />
+              Notes from Your CA Firm
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-800 dark:text-gray-200">{service.notes}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Documents */}
-      <Card>
+      <Card className="border-0 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Documents ({service.documents.length})
-            </h2>
-            <Button size="sm" className="bg-purple-600 hover:bg-purple-700" asChild>
+            <CardTitle className="text-lg">Documents ({service.documents.length})</CardTitle>
+            <Button size="sm" className="bg-violet-600 hover:bg-violet-700" asChild>
               <Link href={`/client/documents?serviceId=${serviceId}`}>
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Document
@@ -240,6 +327,7 @@ export default function ClientServiceDetailsPage() {
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
               <p>No documents yet</p>
+              <p className="text-sm mt-1">Upload documents required for this service</p>
               <Button asChild variant="outline" size="sm" className="mt-4">
                 <Link href={`/client/documents?serviceId=${serviceId}`}>
                   <Upload className="h-4 w-4 mr-2" />
@@ -267,7 +355,7 @@ export default function ClientServiceDetailsPage() {
                     <TableCell>
                       {doc.isFromCA ? (
                         <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                          From CA
+                          From Firm
                         </Badge>
                       ) : (
                         <Badge variant="outline">You</Badge>
@@ -286,18 +374,15 @@ export default function ClientServiceDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* Notes from CA */}
-      {service.notes && (
-        <Card>
-          <CardHeader>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Notes from CA</h2>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-900 dark:text-white">{service.notes}</p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Progress Card */}
+      <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20">
+        <CardContent className="py-6">
+          <div className="text-center">
+            <p className="text-sm text-gray-500 uppercase tracking-wider mb-2">Overall Progress</p>
+            <StatusProgressBar status={service.status as ServiceStatus} />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
-

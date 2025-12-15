@@ -54,7 +54,7 @@ export default function MobileSidebar({ navigation }: MobileSidebarProps) {
             <div className="rounded-lg bg-blue-600 p-2">
               <Shield className="h-5 w-5 text-white" />
             </div>
-            <span className="text-white dark:text-white font-semibold text-lg">FinServe CA</span>
+            <span className="text-white dark:text-white font-semibold text-lg">Firm Portal</span>
           </div>
 
           {/* Navigation Menu */}

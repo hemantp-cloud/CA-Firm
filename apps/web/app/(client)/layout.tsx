@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
@@ -41,19 +42,19 @@ export default function ClientLayout({
 }) {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleLogout = async () => {
-    // Clear local storage first
     if (typeof window !== "undefined") {
       localStorage.removeItem("token")
       localStorage.removeItem("auth-storage")
       localStorage.clear()
     }
-
-    // Sign out with NextAuth
     await signOut({ redirect: false })
-
-    // Force redirect to login page
     window.location.href = "/login"
   }
 
@@ -73,12 +74,17 @@ export default function ClientLayout({
       <aside className="hidden lg:flex w-[280px] bg-[#1e293b] dark:bg-slate-900 flex-col fixed left-0 top-0 h-full">
         {/* Logo Section */}
         <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-700 dark:border-slate-700">
-          <div className="rounded-lg bg-purple-600 p-2">
+          <div className="rounded-lg bg-violet-600 p-2">
             <UserCircle className="h-5 w-5 text-white" />
           </div>
-          <span className="text-white dark:text-white font-semibold text-lg">
-            Client Portal
-          </span>
+          <div className="flex flex-col">
+            <span className="text-white dark:text-white font-semibold text-lg">
+              Client Portal
+            </span>
+            <span className="text-slate-400 text-xs">
+              Welcome
+            </span>
+          </div>
         </div>
 
         {/* Navigation Menu */}
@@ -91,8 +97,8 @@ export default function ClientLayout({
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${isActive
-                    ? "bg-purple-600 text-white"
-                    : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
+                  ? "bg-violet-600 text-white"
+                  : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
                   }`}
               >
                 <Icon className={`h-5 w-5 ${isActive ? "text-white" : "group-hover:text-white"}`} />
@@ -104,19 +110,18 @@ export default function ClientLayout({
 
         {/* User Profile Section */}
         <div className="px-6 py-4 border-t border-slate-700 dark:border-slate-700 space-y-4">
-          {/* User Info */}
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-slate-600 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-full bg-violet-600 flex items-center justify-center">
               <span className="text-white text-sm font-semibold">
                 {getUserInitials(session?.user?.name)}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white dark:text-white text-sm font-medium truncate">
-                {session?.user?.name || "Client User"}
+                {session?.user?.name || "Client"}
               </p>
               <p className="text-slate-400 dark:text-slate-400 text-xs truncate">
-                {session?.user?.email || "client@example.com"}
+                {session?.user?.email}
               </p>
             </div>
           </div>
@@ -142,7 +147,7 @@ export default function ClientLayout({
         <header className="flex lg:hidden bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3 items-center justify-between">
           <MobileSidebar navigation={navigationItems} />
           <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-purple-600 p-1.5">
+            <div className="rounded-lg bg-violet-600 p-1.5">
               <UserCircle className="h-4 w-4 text-white" />
             </div>
             <span className="text-gray-900 dark:text-white font-semibold text-base">
@@ -153,7 +158,7 @@ export default function ClientLayout({
         </header>
 
         {/* Desktop Header - Desktop Only */}
-        <header className="hidden lg:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
+        <header suppressHydrationWarning className="hidden lg:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -166,40 +171,42 @@ export default function ClientLayout({
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-purple-600 flex items-center justify-center">
-                    <span className="text-white text-xs font-semibold">
-                      {getUserInitials(session?.user?.name)}
-                    </span>
-                  </div>
-                  <div className="hidden md:block text-left">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {session?.user?.name || "Client User"}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {(session?.user as any)?.role || "CLIENT"}
-                    </p>
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/client/profile" className="cursor-pointer">
-                    <User className="h-4 w-4 mr-2" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} variant="destructive">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {mounted && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-violet-600 flex items-center justify-center">
+                      <span className="text-white text-xs font-semibold">
+                        {getUserInitials(session?.user?.name)}
+                      </span>
+                    </div>
+                    <div className="hidden md:block text-left">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {session?.user?.name || "Client"}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        CLIENT
+                      </p>
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/client/profile" className="cursor-pointer">
+                      <User className="h-4 w-4 mr-2" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} variant="destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </header>
 
@@ -211,4 +218,3 @@ export default function ClientLayout({
     </div>
   )
 }
-

@@ -7,22 +7,20 @@ import crypto from 'crypto';
  * Get dashboard statistics for Project Manager
  * Only shows data for their managed clients
  */
-export async function getCaDashboard(projectManagerId: string, firmId: string) {
-  // Get client count (clients managed by this Project Manager)
+export async function getCaDashboard(_projectManagerId: string, firmId: string) {
+  // Get client count (ALL clients in firm - PM has full access)
   const clientCount = await prisma.client.count({
     where: {
       firmId,
-      managedBy: projectManagerId,
       isActive: true,
       deletedAt: null,
     },
   });
 
-  // Get service stats (for clients managed by this PM)
+  // Get service stats (ALL in firm)
   const activeServicesCount = await prisma.service.count({
     where: {
       firmId,
-      projectManagerId,
       status: {
         in: ['IN_PROGRESS', 'UNDER_REVIEW'],
       },
@@ -32,36 +30,33 @@ export async function getCaDashboard(projectManagerId: string, firmId: string) {
   const pendingServicesCount = await prisma.service.count({
     where: {
       firmId,
-      projectManagerId,
       status: 'PENDING',
     },
   });
 
-  // Get pending invoices count
-  const clients = await prisma.client.findMany({
-    where: {
-      firmId,
-      managedBy: projectManagerId,
-    },
-    select: { id: true },
-  });
-  const clientIds = clients.map(c => c.id);
-
+  // Get pending invoices count (ALL in firm)
   const pendingInvoicesCount = await prisma.invoice.count({
     where: {
       firmId,
-      clientId: { in: clientIds },
       status: {
         in: ['DRAFT', 'SENT'],
       },
     },
   });
 
-  // Get recent clients (last 5)
+  // Get team member count (ALL in firm)
+  const teamMemberCount = await prisma.teamMember.count({
+    where: {
+      firmId,
+      isActive: true,
+      deletedAt: null,
+    },
+  });
+
+  // Get recent clients (last 5 - ALL in firm)
   const recentClients = await prisma.client.findMany({
     where: {
       firmId,
-      managedBy: projectManagerId,
       deletedAt: null,
     },
     select: {
@@ -81,11 +76,10 @@ export async function getCaDashboard(projectManagerId: string, firmId: string) {
     take: 5,
   });
 
-  // Get recent services (last 5)
+  // Get recent services (last 5 - ALL in firm)
   const recentServices = await prisma.service.findMany({
     where: {
       firmId,
-      projectManagerId,
     },
     select: {
       id: true,
@@ -106,6 +100,7 @@ export async function getCaDashboard(projectManagerId: string, firmId: string) {
 
   return {
     userCount: clientCount,
+    teamMemberCount,
     activeServicesCount,
     pendingServicesCount,
     pendingInvoicesCount,
@@ -127,13 +122,12 @@ export async function getCaDashboard(projectManagerId: string, firmId: string) {
 }
 
 /**
- * Get all clients managed by this Project Manager
+ * Get all clients in the firm (PM has access to all clients in hierarchy)
  */
-export async function getCaCustomers(projectManagerId: string, firmId: string) {
+export async function getCaCustomers(_projectManagerId: string, firmId: string) {
   const clients = await prisma.client.findMany({
     where: {
       firmId,
-      managedBy: projectManagerId,
       deletedAt: null,
     },
     select: {
@@ -166,14 +160,13 @@ export async function getCaCustomers(projectManagerId: string, firmId: string) {
 }
 
 /**
- * Get client by ID (must be managed by this PM)
+ * Get client by ID (PM has access to all clients in firm)
  */
-export async function getCaCustomerById(clientId: string, projectManagerId: string, firmId: string) {
+export async function getCaCustomerById(clientId: string, _projectManagerId: string, firmId: string) {
   const client = await prisma.client.findFirst({
     where: {
       id: clientId,
       firmId,
-      managedBy: projectManagerId,
       deletedAt: null,
     },
     include: {
@@ -265,14 +258,13 @@ export async function createCaCustomer(projectManagerId: string, firmId: string,
 }
 
 /**
- * Update client (must be managed by this PM)
+ * Update client (PM has access to all clients in firm)
  */
-export async function updateCaCustomer(clientId: string, projectManagerId: string, firmId: string, userData: any) {
+export async function updateCaCustomer(clientId: string, _projectManagerId: string, firmId: string, userData: any) {
   const client = await prisma.client.findFirst({
     where: {
       id: clientId,
       firmId,
-      managedBy: projectManagerId,
       deletedAt: null,
     },
   });
@@ -297,14 +289,13 @@ export async function updateCaCustomer(clientId: string, projectManagerId: strin
 }
 
 /**
- * Delete client (soft delete - must be managed by this PM)
+ * Delete client (soft delete - PM has access to all clients in firm)
  */
 export async function deleteCaCustomer(clientId: string, projectManagerId: string, firmId: string) {
   const client = await prisma.client.findFirst({
     where: {
       id: clientId,
       firmId,
-      managedBy: projectManagerId,
       deletedAt: null,
     },
   });
@@ -326,12 +317,11 @@ export async function deleteCaCustomer(clientId: string, projectManagerId: strin
 }
 
 /**
- * Get services for clients managed by this PM
+ * Get all services in the firm (PM has access to all services in hierarchy)
  */
-export async function getCaServices(projectManagerId: string, firmId: string, filters: any = {}) {
+export async function getCaServices(_projectManagerId: string, firmId: string, filters: any = {}) {
   const where: any = {
     firmId,
-    projectManagerId,
   };
 
   if (filters.status) {
@@ -360,30 +350,20 @@ export async function getCaServices(projectManagerId: string, firmId: string, fi
 }
 
 /**
- * Get documents for clients managed by this PM
+ * Get documents in the firm (PM can see TM and Client documents only - hierarchy based)
  */
-export async function getCaDocuments(projectManagerId: string, firmId: string) {
-  // Get all clients under this PM
-  const clients = await prisma.client.findMany({
-    where: {
-      firmId,
-      managedBy: projectManagerId,
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  const clientIds = clients.map((c) => c.id);
-
+export async function getCaDocuments(_projectManagerId: string, firmId: string) {
+  // PM can see documents uploaded by Team Members and Clients (below them in hierarchy)
   return await prisma.document.findMany({
     where: {
       firmId,
-      clientId: {
-        in: clientIds,
-      },
       isDeleted: false,
+      // Only documents from roles below PM in hierarchy
+      OR: [
+        { uploadedByRole: 'TEAM_MEMBER' },
+        { uploadedByRole: 'CLIENT' },
+        { uploadedByRole: null }, // Legacy documents without role
+      ],
     },
     include: {
       client: {
@@ -406,29 +386,12 @@ export async function getCaDocuments(projectManagerId: string, firmId: string) {
 }
 
 /**
- * Get invoices for clients managed by this PM
+ * Get all invoices in the firm (PM has access to all invoices)
  */
-export async function getCaInvoices(projectManagerId: string, firmId: string) {
-  // Get all clients under this PM
-  const clients = await prisma.client.findMany({
-    where: {
-      firmId,
-      managedBy: projectManagerId,
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  const clientIds = clients.map((c) => c.id);
-
+export async function getCaInvoices(_projectManagerId: string, firmId: string) {
   return await prisma.invoice.findMany({
     where: {
       firmId,
-      clientId: {
-        in: clientIds,
-      },
     },
     include: {
       client: {
@@ -500,14 +463,13 @@ export async function updateCaProfile(projectManagerId: string, firmId: string, 
 }
 
 /**
- * Get client documents grouped by client for PM dashboard
+ * Get client documents grouped by client for PM dashboard (all clients in firm)
  */
-export async function getClientDocuments(projectManagerId: string, firmId: string) {
-  // Get all clients managed by this PM
+export async function getClientDocuments(_projectManagerId: string, firmId: string) {
+  // Get all clients in the firm
   const clients = await prisma.client.findMany({
     where: {
       firmId,
-      managedBy: projectManagerId,
       deletedAt: null,
     },
     select: {
@@ -555,3 +517,4 @@ export async function getClientDocuments(projectManagerId: string, firmId: strin
 
   return result;
 }
+

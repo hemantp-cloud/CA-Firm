@@ -54,7 +54,7 @@ export default function ClientDetailsPage() {
   const fetchClient = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get(`/ca/clients/${clientId}`)
+      const response = await api.get(`/project-manager/clients/${clientId}`)
       if (response.data.success) {
         setClient(response.data.data)
       }
@@ -71,8 +71,8 @@ export default function ClientDetailsPage() {
     }
 
     try {
-      await api.delete(`/ca/clients/${clientId}`)
-      router.push("/ca/clients")
+      await api.delete(`/project-manager/clients/${clientId}`)
+      router.push("/project-manager/clients")
     } catch (error) {
       console.error("Failed to delete client:", error)
       alert("Failed to deactivate client")
@@ -111,7 +111,7 @@ export default function ClientDetailsPage() {
       <div className="flex flex-col items-center justify-center py-12">
         <p className="text-gray-500 mb-4">Client not found</p>
         <Button asChild>
-          <Link href="/ca/clients">Back to Clients</Link>
+          <Link href="/project-manager/clients">Back to Clients</Link>
         </Button>
       </div>
     )
@@ -123,7 +123,7 @@ export default function ClientDetailsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" asChild>
-            <Link href="/ca/clients">
+            <Link href="/project-manager/clients">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Link>
@@ -135,7 +135,7 @@ export default function ClientDetailsPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link href={`/ca/clients/${clientId}/edit`}>
+            <Link href={`/project-manager/clients/${clientId}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>
@@ -261,7 +261,7 @@ export default function ClientDetailsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/ca/services/${service.id}`}>View</Link>
+                        <Link href={`/project-manager/services/${service.id}`}>View</Link>
                       </Button>
                     </TableCell>
                   </TableRow>

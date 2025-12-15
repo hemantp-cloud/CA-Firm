@@ -39,10 +39,10 @@ const serviceSchema = z.object({
     title: z.string().min(1, "Service name is required"),
     description: z.string().optional(),
     financialYear: z.string().optional(),
-    period: z.string().optional(),
+    assessmentYear: z.string().optional(),
     dueDate: z.string().min(1, "Due date is required"),
     feeAmount: z.string().optional(),
-    notes: z.string().optional(),
+    internalNotes: z.string().optional(),
 })
 
 type ServiceFormData = z.infer<typeof serviceSchema>
@@ -108,7 +108,7 @@ export default function NewCaServicePage() {
                 dueDate: new Date(data.dueDate).toISOString(),
             }
 
-            const response = await api.post("/services", payload)
+            const response = await api.post("/project-manager/services", payload)
 
             if (response.data.success) {
                 router.push(`/project-manager/services`)
@@ -248,13 +248,13 @@ export default function NewCaServicePage() {
                                 />
                             </div>
 
-                            {/* Period */}
+                            {/* Assessment Year */}
                             <div>
-                                <Label htmlFor="period">Period</Label>
+                                <Label htmlFor="assessmentYear">Assessment Year</Label>
                                 <Input
-                                    id="period"
-                                    placeholder="e.g., Q1, November"
-                                    {...register("period")}
+                                    id="assessmentYear"
+                                    placeholder="e.g., 2025-26"
+                                    {...register("assessmentYear")}
                                 />
                             </div>
 
@@ -302,12 +302,12 @@ export default function NewCaServicePage() {
 
                         {/* Internal Notes */}
                         <div>
-                            <Label htmlFor="notes">Internal Notes</Label>
+                            <Label htmlFor="internalNotes">Internal Notes</Label>
                             <Textarea
-                                id="notes"
+                                id="internalNotes"
                                 rows={3}
                                 placeholder="Internal notes..."
-                                {...register("notes")}
+                                {...register("internalNotes")}
                             />
                         </div>
 

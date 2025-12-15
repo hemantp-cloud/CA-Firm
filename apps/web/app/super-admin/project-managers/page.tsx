@@ -50,8 +50,8 @@ export default function ProjectManagersPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Project Managers (CAs)</h1>
-                    <p className="text-gray-600">Manage CA / Project Manager users</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Project Managers</h1>
+                    <p className="text-gray-600">Manage Project Manager users</p>
                 </div>
                 <Link
                     href="/super-admin/project-managers/new"
@@ -75,7 +75,7 @@ export default function ProjectManagersPage() {
                             </svg>
                         </div>
                         <h3 className="text-lg font-medium text-gray-900">No project managers yet</h3>
-                        <p className="mt-1 text-gray-500">Get started by creating a new CA / Project Manager.</p>
+                        <p className="mt-1 text-gray-500">Get started by creating a new Project Manager.</p>
                         <Link
                             href="/super-admin/project-managers/new"
                             className="mt-4 inline-flex items-center px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"

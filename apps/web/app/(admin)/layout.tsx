@@ -87,9 +87,14 @@ export default function AdminLayout({
           <div className="rounded-lg bg-blue-600 p-2">
             <Shield className="h-5 w-5 text-white" />
           </div>
-          <span className="text-white dark:text-white font-semibold text-lg">
-            CA Firm Management
-          </span>
+          <div className="flex flex-col">
+            <span className="text-white dark:text-white font-semibold text-lg">
+              Admin Portal
+            </span>
+            <span className="text-slate-400 text-xs">
+              Firm Management
+            </span>
+          </div>
         </div>
 
         {/* Navigation Menu */}
@@ -157,7 +162,7 @@ export default function AdminLayout({
               <Shield className="h-4 w-4 text-white" />
             </div>
             <span className="text-gray-900 dark:text-white font-semibold text-base">
-              CA Portal
+              Admin Portal
             </span>
           </div>
           <ThemeToggle />

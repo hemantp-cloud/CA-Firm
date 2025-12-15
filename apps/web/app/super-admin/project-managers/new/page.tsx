@@ -64,7 +64,7 @@ export default function NewProjectManagerPage() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">Add New Project Manager (CA)</h1>
+                <h1 className="text-2xl font-bold text-gray-900 mb-6">Add New Project Manager</h1>
 
                 {error && (
                     <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">{error}</div>

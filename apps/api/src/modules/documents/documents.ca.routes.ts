@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient, Role } from '@prisma/client';
+import prisma from '../../shared/utils/prisma';
 import { authenticate, requireCA, AuthenticatedRequest } from '../../shared/middleware/auth.middleware';
 import multer from 'multer';
 import { ensureUploadDirectories } from '../../shared/utils/file-storage';
@@ -7,27 +7,30 @@ import path from 'path';
 import fs from 'fs/promises';
 
 const router = Router();
-const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // GET /api/ca/client-documents - Get ALL client documents with hierarchical organization (for dashboard)
 router.get('/client-documents', authenticate, requireCA, async (_req: AuthenticatedRequest, res) => {
     try {
-        // Fetch all submitted documents from CLIENT users only
+        const firmId = _req.user?.firmId;
+
+        if (!firmId) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        // Fetch all submitted documents from clients
         const documents = await prisma.document.findMany({
             where: {
+                firmId,
                 uploadStatus: 'SUBMITTED',
-                user: {
-                    role: Role.CLIENT,
-                },
+                clientId: { not: null },
             },
             include: {
-                user: {
+                client: {
                     select: {
                         id: true,
                         name: true,
                         email: true,
-                        role: true,
                     },
                 },
                 service: {
@@ -46,15 +49,16 @@ router.get('/client-documents', authenticate, requireCA, async (_req: Authentica
         const clientMap = new Map<string, any>();
 
         documents.forEach(doc => {
-            const clientId = doc.user.id;
-            const clientName = doc.user.name;
+            if (!doc.client) return;
+            const clientId = doc.client.id;
+            const clientName = doc.client.name;
             const docType = doc.documentType || 'OTHER';
 
             if (!clientMap.has(clientId)) {
                 clientMap.set(clientId, {
                     clientId,
                     clientName,
-                    clientEmail: doc.user.email,
+                    clientEmail: doc.client.email,
                     documentTypes: {},
                 });
             }
@@ -95,24 +99,28 @@ router.get('/client-documents', authenticate, requireCA, async (_req: Authentica
     }
 });
 
-// GET /api/ca/documents - List CA's personal documents only
+// GET /api/ca/documents - List documents in the firm
 router.get('/documents', authenticate, requireCA, async (req: AuthenticatedRequest, res) => {
     try {
-        const userId = req.user?.userId;
+        const firmId = req.user?.firmId;
 
-        if (!userId) {
+        if (!firmId) {
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         }
 
-        // Fetch only CA's own documents
+        // Fetch documents in the firm (PM can see all documents)
         const documents = await prisma.document.findMany({
             where: {
-                userId,
-                user: {
-                    role: Role.CA,
-                },
+                firmId,
+                isDeleted: false,
             },
             include: {
+                client: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
                 service: {
                     select: {
                         id: true,
@@ -141,7 +149,7 @@ router.get('/documents', authenticate, requireCA, async (req: AuthenticatedReque
     }
 });
 
-// POST /api/ca/documents/upload - Upload CA's personal document
+// POST /api/ca/documents/upload - Upload document
 router.post('/documents/upload', authenticate, requireCA, upload.single('file'), async (req: AuthenticatedRequest, res) => {
     try {
         const userId = req.user?.userId;
@@ -155,7 +163,7 @@ router.post('/documents/upload', authenticate, requireCA, upload.single('file'),
             return res.status(400).json({ success: false, message: 'No file uploaded' });
         }
 
-        const { documentType, description, serviceId } = req.body;
+        const { documentType, description, serviceId, clientId } = req.body;
 
         // Save file to storage
         await ensureUploadDirectories();
@@ -170,7 +178,9 @@ router.post('/documents/upload', authenticate, requireCA, upload.single('file'),
         const document = await prisma.document.create({
             data: {
                 firmId,
-                userId,
+                clientId: clientId || null,
+                uploadedById: userId,
+                uploadedByRole: 'PROJECT_MANAGER',
                 serviceId: serviceId || null,
                 fileName: req.file.originalname,
                 fileType: req.file.mimetype,
@@ -178,7 +188,7 @@ router.post('/documents/upload', authenticate, requireCA, upload.single('file'),
                 storagePath,
                 documentType: documentType || null,
                 description: description || null,
-                uploadStatus: 'SUBMITTED', // CA documents are immediately submitted
+                uploadStatus: 'SUBMITTED',
                 submittedAt: new Date(),
             },
             include: {
@@ -212,16 +222,20 @@ router.post('/documents/upload', authenticate, requireCA, upload.single('file'),
 router.get('/:id', authenticate, requireCA, async (req: AuthenticatedRequest, res) => {
     try {
         const id = String(req.params.id);
+        const firmId = req.user?.firmId;
 
-        const document = await prisma.document.findUnique({
-            where: { id },
+        if (!firmId) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        const document = await prisma.document.findFirst({
+            where: { id, firmId },
             include: {
-                user: {
+                client: {
                     select: {
                         id: true,
                         name: true,
                         email: true,
-                        role: true,
                     },
                 },
                 service: true,
@@ -237,7 +251,10 @@ router.get('/:id', authenticate, requireCA, async (req: AuthenticatedRequest, re
 
         return res.json({
             success: true,
-            data: document,
+            data: {
+                ...document,
+                fileSize: document.fileSize?.toString() || '0',
+            },
         });
     } catch (error) {
         console.error('Error fetching document details:', error);
@@ -248,14 +265,19 @@ router.get('/:id', authenticate, requireCA, async (req: AuthenticatedRequest, re
     }
 });
 
-// DELETE /api/ca/documents/:id - Delete CA's personal document
+// DELETE /api/ca/documents/:id - Delete document
 router.delete('/documents/:id', authenticate, requireCA, async (req: AuthenticatedRequest, res) => {
     try {
         const id = String(req.params.id);
         const userId = req.user?.userId;
+        const firmId = req.user?.firmId;
 
-        const document = await prisma.document.findUnique({
-            where: { id },
+        if (!userId || !firmId) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        const document = await prisma.document.findFirst({
+            where: { id, firmId },
         });
 
         if (!document) {
@@ -265,16 +287,14 @@ router.delete('/documents/:id', authenticate, requireCA, async (req: Authenticat
             });
         }
 
-        // Ensure document belongs to this CA
-        if (document.userId !== userId) {
-            return res.status(403).json({
-                success: false,
-                message: 'Not authorized to delete this document',
-            });
-        }
-
-        await prisma.document.delete({
+        // Soft delete
+        await prisma.document.update({
             where: { id },
+            data: {
+                isDeleted: true,
+                deletedAt: new Date(),
+                deletedBy: userId,
+            },
         });
 
         return res.json({

@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { authenticate, requireSuperAdmin, AuthenticatedRequest } from '../../shared/middleware/auth.middleware';
+import { logUserCreation, logUserDeletion } from '../../services/auditLog.service';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -165,6 +166,11 @@ router.post('/admins', authenticate, requireSuperAdmin, async (req: Authenticate
       RETURNING id, email, name, phone, "isActive", "createdAt"
     `;
 
+        // Log the activity
+        if (admin[0]) {
+            await logUserCreation(firmId, createdBy, 'SUPER_ADMIN', admin[0].id, name, 'ADMIN');
+        }
+
         res.status(201).json({
             success: true,
             message: 'Admin created successfully',
@@ -228,6 +234,11 @@ router.post('/project-managers', authenticate, requireSuperAdmin, async (req: Au
       VALUES (gen_random_uuid(), ${firmId}, ${createdBy}, 'SUPER_ADMIN', ${email.toLowerCase()}, ${hashedPassword}, ${name}, ${phone || null}, ${pan || null}, true, false, NOW(), NOW())
       RETURNING id, email, name, phone, pan, "isActive", "createdAt"
     `;
+
+        // Log the activity
+        if (pm[0]) {
+            await logUserCreation(firmId, createdBy, 'SUPER_ADMIN', pm[0].id, name, 'PROJECT_MANAGER');
+        }
 
         res.status(201).json({
             success: true,
@@ -293,6 +304,11 @@ router.post('/team-members', authenticate, requireSuperAdmin, async (req: Authen
       RETURNING id, email, name, phone, "isActive", "createdAt"
     `;
 
+        // Log the activity
+        if (tm[0]) {
+            await logUserCreation(firmId, createdBy, 'SUPER_ADMIN', tm[0].id, name, 'TEAM_MEMBER');
+        }
+
         res.status(201).json({
             success: true,
             message: 'Team Member created successfully',
@@ -356,6 +372,11 @@ router.post('/clients', authenticate, requireSuperAdmin, async (req: Authenticat
       VALUES (gen_random_uuid(), ${firmId}, NULL, ${createdBy}, 'SUPER_ADMIN', ${email.toLowerCase()}, ${hashedPassword}, ${name}, ${phone || null}, ${companyName || null}, ${pan || null}, ${gstin || null}, true, false, NOW(), NOW())
       RETURNING id, email, name, phone, "companyName", pan, gstin, "isActive", "createdAt"
     `;
+
+        // Log the activity
+        if (client[0]) {
+            await logUserCreation(firmId, createdBy, 'SUPER_ADMIN', client[0].id, name, 'CLIENT');
+        }
 
         res.status(201).json({
             success: true,
@@ -540,7 +561,7 @@ router.delete('/users/:role/:id', authenticate, requireSuperAdmin, async (req: A
     try {
         const { role, id } = req.params;
         const firmId = req.user?.firmId;
-        const deletedBy = req.user?.id;
+        const deletedBy = req.user?.userId;
 
         if (!firmId || !deletedBy) {
             res.status(400).json({ success: false, message: 'Firm ID and user ID required' });
@@ -590,6 +611,11 @@ router.delete('/users/:role/:id', authenticate, requireSuperAdmin, async (req: A
         if (!result || result.length === 0) {
             res.status(404).json({ success: false, message: 'User not found' });
             return;
+        }
+
+        // Log the deactivation
+        if (firmId && deletedBy && role) {
+            await logUserDeletion(firmId, deletedBy, 'SUPER_ADMIN', id!, `User ${id}`, role as string, false);
         }
 
         res.json({
@@ -789,7 +815,7 @@ router.put('/firm/settings', authenticate, requireSuperAdmin, async (req: Authen
 router.get('/audit-logs', authenticate, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const firmId = req.user?.firmId;
-        const { page = '1', limit = '50', action, entityType, userId, startDate, endDate } = req.query;
+        const { page = '1', limit = '50', action, entityType } = req.query;
 
         if (!firmId) {
             res.status(400).json({ success: false, message: 'Firm ID required' });
@@ -797,36 +823,37 @@ router.get('/audit-logs', authenticate, requireSuperAdmin, async (req: Authentic
         }
 
         const pageNum = parseInt(page as string);
-        const limitNum = parseInt(limit as string);
+        const limitNum = Math.min(parseInt(limit as string), 100); // Cap at 100
         const offset = (pageNum - 1) * limitNum;
 
-        // Build filter conditions
-        let whereConditions = [`"firmId" = '${firmId}'`];
+        // Build dynamic filter object for Prisma
+        const where: any = { firmId };
+        if (action && action !== '') where.action = action as string;
+        if (entityType && entityType !== '') where.entityType = entityType as string;
 
-        if (action) whereConditions.push(`action = '${action}'`);
-        if (entityType) whereConditions.push(`"entityType" = '${entityType}'`);
-        if (userId) whereConditions.push(`"userId" = '${userId}'`);
-        if (startDate) whereConditions.push(`"createdAt" >= '${startDate}'`);
-        if (endDate) whereConditions.push(`"createdAt" <= '${endDate}'`);
-
-        const whereClause = whereConditions.join(' AND ');
-
-        const logs = await prisma.$queryRaw<any[]>`
-            SELECT 
-                id, "userId", "userType", action, "entityType", "entityId", "entityName",
-                details, "ipAddress", "userAgent", "createdAt"
-            FROM activity_logs
-            WHERE ${prisma.$queryRawUnsafe(whereClause)}
-            ORDER BY "createdAt" DESC
-            LIMIT ${limitNum}
-            OFFSET ${offset}
-        `;
-
-        const totalCount = await prisma.$queryRaw<any[]>`
-            SELECT COUNT(*)::int as count
-            FROM activity_logs
-            WHERE ${prisma.$queryRawUnsafe(whereClause)}
-        `;
+        // Use Prisma ORM instead of raw SQL for safer queries
+        const [logs, totalCount] = await Promise.all([
+            prisma.activityLog.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                take: limitNum,
+                skip: offset,
+                select: {
+                    id: true,
+                    userId: true,
+                    userType: true,
+                    action: true,
+                    entityType: true,
+                    entityId: true,
+                    entityName: true,
+                    details: true,
+                    ipAddress: true,
+                    userAgent: true,
+                    createdAt: true,
+                },
+            }),
+            prisma.activityLog.count({ where }),
+        ]);
 
         res.json({
             success: true,
@@ -834,8 +861,8 @@ router.get('/audit-logs', authenticate, requireSuperAdmin, async (req: Authentic
             pagination: {
                 page: pageNum,
                 limit: limitNum,
-                total: totalCount[0]?.count || 0,
-                totalPages: Math.ceil((totalCount[0]?.count || 0) / limitNum),
+                total: totalCount,
+                totalPages: Math.ceil(totalCount / limitNum),
             },
         });
     } catch (error) {
@@ -854,22 +881,29 @@ router.get('/audit-logs', authenticate, requireSuperAdmin, async (req: Authentic
 router.get('/recent-activity', authenticate, requireSuperAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const firmId = req.user?.firmId;
-        const limit = parseInt(req.query.limit as string) || 10;
+        const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
 
         if (!firmId) {
             res.status(400).json({ success: false, message: 'Firm ID required' });
             return;
         }
 
-        const activities = await prisma.$queryRaw<any[]>`
-            SELECT 
-                id, "userId", "userType", action, "entityType", "entityId", "entityName",
-                details, "createdAt"
-            FROM activity_logs
-            WHERE "firmId" = ${firmId}
-            ORDER BY "createdAt" DESC
-            LIMIT ${limit}
-        `;
+        const activities = await prisma.activityLog.findMany({
+            where: { firmId },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            select: {
+                id: true,
+                userId: true,
+                userType: true,
+                action: true,
+                entityType: true,
+                entityId: true,
+                entityName: true,
+                details: true,
+                createdAt: true,
+            },
+        });
 
         res.json({
             success: true,

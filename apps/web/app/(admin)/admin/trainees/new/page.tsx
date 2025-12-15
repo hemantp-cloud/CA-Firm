@@ -46,11 +46,11 @@ export default function NewTeamMemberPage() {
         }
 
         try {
-            const response = await api.post("/super-admin/team-members", formData)
+            const response = await api.post("/admin/team-members", formData)
 
             if (response.data.success) {
                 alert("Team Member created successfully!")
-                router.push("/admin/trainees")
+                router.push("/admin/team-members")
             } else {
                 setError(response.data.message || "Failed to create team member")
             }
@@ -71,7 +71,7 @@ export default function NewTeamMemberPage() {
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="sm" asChild>
-                    <Link href="/admin/trainees">
+                    <Link href="/admin/team-members">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back
                     </Link>
@@ -185,7 +185,7 @@ export default function NewTeamMemberPage() {
                                 )}
                             </Button>
                             <Button type="button" variant="outline" asChild>
-                                <Link href="/admin/trainees">Cancel</Link>
+                                <Link href="/admin/team-members">Cancel</Link>
                             </Button>
                         </div>
                     </form>

@@ -26,19 +26,65 @@ datasource db {
 // ============================================
 
 enum Role {
-  SUPER_ADMIN      // Main Admin (Owner) - Only ONE
-  ADMIN            // Regular Admin
-  PROJECT_MANAGER  // Was CA
-  TEAM_MEMBER      // Was TRAINEE
-  CLIENT           // End Customer
+  SUPER_ADMIN // Main Admin (Owner) - Only ONE
+  ADMIN // Regular Admin
+  PROJECT_MANAGER // Was CA
+  TEAM_MEMBER // Was TRAINEE
+  CLIENT // End Customer
 }
 
 enum ServiceStatus {
-  PENDING
-  IN_PROGRESS
-  UNDER_REVIEW
-  COMPLETED
-  CANCELLED
+  // Creation Phase
+  PENDING // Service created, not assigned yet
+
+  // Assignment Phase
+  ASSIGNED // Assigned to PM/TM, work not started
+
+  // Execution Phase
+  IN_PROGRESS // Work actively being done
+  WAITING_FOR_CLIENT // Need client input/documents
+  ON_HOLD // Temporarily paused
+
+  // Review Phase
+  UNDER_REVIEW // Submitted for quality check
+  CHANGES_REQUESTED // Reviewer found issues
+
+  // Completion Phase
+  COMPLETED // All work done, approved
+  DELIVERED // Sent to client
+
+  // Billing Phase
+  INVOICED // Invoice generated
+
+  // Final States
+  CLOSED // Fully done, paid
+  CANCELLED // Service cancelled
+}
+
+// Service Origin - How was the service created?
+enum ServiceOrigin {
+  CLIENT_REQUEST // Client requested via portal
+  FIRM_CREATED // SA/Admin/PM created directly
+  RECURRING // Auto-created from schedule (future)
+  COMPLIANCE // Compliance calendar triggered (future)
+}
+
+// Service Request Status - For client-initiated requests
+enum RequestStatus {
+  PENDING // Awaiting review
+  UNDER_REVIEW // Being reviewed by PM/Admin
+  APPROVED // Approved, converting to Service
+  REJECTED // Rejected with reason
+  CANCELLED // Cancelled by client
+  CONVERTED // Successfully converted to Service
+}
+
+// Request Urgency - Priority levels for requests
+enum RequestUrgency {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 enum ServiceType {
@@ -125,16 +171,28 @@ model Firm {
   updatedAt DateTime @updatedAt
 
   // Relations
-  superAdmin       SuperAdmin?
-  admins           Admin[]
-  projectManagers  ProjectManager[]
-  teamMembers      TeamMember[]
-  clients          Client[]
-  services         Service[]
-  documents        Document[]
-  invoices         Invoice[]
-  activityLogs     ActivityLog[]
-  settings         Setting[]
+  superAdmin      SuperAdmin?
+  admins          Admin[]
+  projectManagers ProjectManager[]
+  teamMembers     TeamMember[]
+  clients         Client[]
+  services        Service[]
+  documents       Document[]
+  invoices        Invoice[]
+  activityLogs    ActivityLog[]
+  settings        Setting[]
+
+  // NEW: Enhanced Service Workflow Relations
+  clientPMAssignments  ClientPMAssignment[]
+  serviceRequests      ServiceRequest[]
+  serviceAssignments   ServiceAssignment[]
+  serviceStatusHistory ServiceStatusHistory[]
+
+  // NEW: Service Configuration Master Tables
+  serviceCategories    ServiceCategory[]
+  serviceTypeMasters   ServiceTypeMaster[]
+  serviceSubTypes      ServiceSubType[]
+  documentRequirements DocumentRequirement[]
 
   @@index([email])
   @@map("firms")
@@ -183,8 +241,8 @@ model SuperAdmin {
   deletedBy String? // Should always be null (Super Admin cannot be deleted)
 
   // Relations
-  firm                 Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  createdAdmins        Admin[]          @relation("CreatedBySuperAdmin")
+  firm          Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  createdAdmins Admin[] @relation("CreatedBySuperAdmin")
 
   @@index([firmId])
   @@index([email])
@@ -230,8 +288,8 @@ model Admin {
   deletedBy String? // Super Admin ID who deleted this admin
 
   // Relations
-  firm                 Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  creator              SuperAdmin       @relation("CreatedBySuperAdmin", fields: [createdBy], references: [id], onDelete: Restrict)
+  firm    Firm       @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  creator SuperAdmin @relation("CreatedBySuperAdmin", fields: [createdBy], references: [id], onDelete: Restrict)
   // Note: We track created users via createdBy field in their tables
 
   @@unique([firmId, email])
@@ -244,24 +302,24 @@ model Admin {
 
 // Project Manager (Was CA - Chartered Accountant)
 model ProjectManager {
-  id          String    @id @default(uuid())
-  firmId      String
-  createdBy   String // Super Admin or Admin ID
+  id            String    @id @default(uuid())
+  firmId        String
+  createdBy     String // Super Admin or Admin ID
   createdByRole String // "SUPER_ADMIN" or "ADMIN"
-  email       String    @unique
-  password    String
-  name        String
-  phone       String?
-  pan         String?
-  address     String?
-  city        String?
-  state       String?
-  pincode     String?
-  avatar      String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastLoginAt DateTime?
+  email         String    @unique
+  password      String
+  name          String
+  phone         String?
+  pan           String?
+  address       String?
+  city          String?
+  state         String?
+  pincode       String?
+  avatar        String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
 
   // Business details
   gstin      String?
@@ -291,12 +349,16 @@ model ProjectManager {
   deletedBy String? // Super Admin or Admin ID who deleted
 
   // Relations
-  firm                 Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  firm           Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
   // Note: createdBy references SuperAdmin or Admin based on createdByRole
   // We don't use Prisma relations here to avoid conflicts
   // We track created users via createdBy field in their tables
-  managedClients       Client[]         @relation("ManagedByProjectManager")
-  services             Service[]
+  managedClients Client[]  @relation("ManagedByProjectManager")
+  services       Service[]
+
+  // NEW: Enhanced Service Workflow Relations
+  clientAssignments  ClientPMAssignment[] // Many-to-Many with Clients
+  serviceAssignments ServiceAssignment[] // Services assigned to this PM
 
   @@unique([firmId, email])
   @@index([firmId])
@@ -308,20 +370,20 @@ model ProjectManager {
 
 // Team Member (Was TRAINEE - Junior Staff)
 model TeamMember {
-  id          String    @id @default(uuid())
-  firmId      String
-  createdBy   String // Super Admin, Admin, or Project Manager ID
+  id            String    @id @default(uuid())
+  firmId        String
+  createdBy     String // Super Admin, Admin, or Project Manager ID
   createdByRole String // "SUPER_ADMIN", "ADMIN", or "PROJECT_MANAGER"
-  email       String    @unique
-  password    String
-  name        String
-  phone       String?
-  address     String?
-  avatar      String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastLoginAt DateTime?
+  email         String    @unique
+  password      String
+  name          String
+  phone         String?
+  address       String?
+  avatar        String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
 
   // Team Member specific
   joiningDate DateTime @default(now())
@@ -351,13 +413,13 @@ model TeamMember {
   deletedBy String? // Super Admin, Admin, or Project Manager ID who deleted
 
   // Relations
-  firm                 Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
   // Note: createdBy references SuperAdmin, Admin, or ProjectManager based on createdByRole
   // We don't use Prisma relations here to avoid conflicts
-  tasks                Task[]
-  documents            Document[]       @relation("TeamMemberDocuments")
-  assignedDocuments    Document[]       @relation("AssignedToTeamMember")
-  clientAssignments    ClientAssignment[]
+  tasks             Task[]
+  documents         Document[]         @relation("TeamMemberDocuments")
+  assignedDocuments Document[]         @relation("AssignedToTeamMember")
+  clientAssignments ClientAssignment[]
 
   @@unique([firmId, email])
   @@index([firmId])
@@ -369,26 +431,26 @@ model TeamMember {
 
 // Client (End Customer)
 model Client {
-  id          String    @id @default(uuid())
-  firmId      String
-  managedBy   String? // Project Manager ID who manages this client (optional)
-  createdBy   String // Super Admin, Admin, or Project Manager ID
+  id            String    @id @default(uuid())
+  firmId        String
+  managedBy     String? // Project Manager ID who manages this client (optional)
+  createdBy     String // Super Admin, Admin, or Project Manager ID
   createdByRole String // "SUPER_ADMIN", "ADMIN", or "PROJECT_MANAGER"
-  email       String    @unique
-  password    String
-  name        String
-  phone       String?
-  pan         String?
-  aadhar      String?
-  address     String?
-  city        String?
-  state       String?
-  pincode     String?
-  avatar      String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastLoginAt DateTime?
+  email         String    @unique
+  password      String
+  name          String
+  phone         String?
+  pan           String?
+  aadhar        String?
+  address       String?
+  city          String?
+  state         String?
+  pincode       String?
+  avatar        String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
 
   // Business details (if company)
   gstin       String?
@@ -418,14 +480,18 @@ model Client {
   deletedBy String? // Super Admin, Admin, or Project Manager ID who deleted
 
   // Relations
-  firm                 Firm             @relation(fields: [firmId], references: [id], onDelete: Cascade)
-  projectManager       ProjectManager?  @relation("ManagedByProjectManager", fields: [managedBy], references: [id], onDelete: SetNull)
+  firm              Firm               @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  projectManager    ProjectManager?    @relation("ManagedByProjectManager", fields: [managedBy], references: [id], onDelete: SetNull)
   // Note: createdBy references SuperAdmin, Admin, or ProjectManager based on createdByRole
   // We don't use Prisma relations here to avoid conflicts
-  services             Service[]
-  documents            Document[]       @relation("ClientDocuments")
-  invoices             Invoice[]
-  clientAssignments    ClientAssignment[]
+  services          Service[]
+  documents         Document[]         @relation("ClientDocuments")
+  invoices          Invoice[]
+  clientAssignments ClientAssignment[]
+
+  // NEW: Enhanced Service Workflow Relations
+  pmAssignments   ClientPMAssignment[] // Many-to-Many with PMs
+  serviceRequests ServiceRequest[] // Client-initiated requests
 
   @@unique([firmId, email])
   @@index([firmId])
@@ -442,22 +508,50 @@ model Client {
 
 // Service
 model Service {
-  id                String        @id @default(uuid())
-  firmId            String
-  clientId          String // Client who requested this service
-  projectManagerId  String? // Project Manager managing this service
-  title             String
-  description       String?
-  type              ServiceType
-  status            ServiceStatus @default(PENDING)
-  dueDate           DateTime?
-  completedAt       DateTime?
-  feeAmount         Decimal?      @db.Decimal(10, 2)
-  notes             String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id               String        @id @default(uuid())
+  firmId           String
+  clientId         String // Client who requested this service
+  projectManagerId String? // Project Manager managing this service (legacy, kept for compatibility)
+  title            String
+  description      String?
+  type             ServiceType
+  status           ServiceStatus @default(PENDING)
+  dueDate          DateTime?
+  completedAt      DateTime?
+  feeAmount        Decimal?      @db.Decimal(10, 2)
+  notes            String? // Notes visible to client
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  // Relations
+  // ========== NEW ENHANCED WORKFLOW FIELDS ==========
+
+  // Service Origin - How was this service created?
+  origin           ServiceOrigin @default(FIRM_CREATED)
+  serviceRequestId String?       @unique // If created from client request
+
+  // Financial Year Tracking
+  financialYear  String? // "2024-25"
+  assessmentYear String? // "2025-26"
+
+  // Current Assignment (Quick Access - denormalized for performance)
+  currentAssigneeId   String? // PM or TM ID who is currently working
+  currentAssigneeType String? // "PROJECT_MANAGER" or "TEAM_MEMBER"
+  currentAssigneeName String? // For quick display without joins
+
+  // Creation Tracking
+  createdBy     String? // User ID who created this service
+  createdByRole String? // "SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "CLIENT"
+  createdByName String? // For quick display
+
+  // Work Dates
+  startDate DateTime? // When work actually started
+
+  // Internal Notes (Not visible to client)
+  internalNotes String?
+
+  // ========== RELATIONS ==========
+
+  // Existing Relations
   firm           Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
   client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
   projectManager ProjectManager? @relation(fields: [projectManagerId], references: [id], onDelete: SetNull)
@@ -465,12 +559,19 @@ model Service {
   documents      Document[]
   invoices       Invoice[]
 
+  // NEW: Enhanced Workflow Relations
+  serviceRequest ServiceRequest?        @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
+  assignments    ServiceAssignment[]
+  statusHistory  ServiceStatusHistory[]
+
   @@index([firmId])
   @@index([clientId])
   @@index([projectManagerId])
   @@index([type])
   @@index([status])
   @@index([dueDate])
+  @@index([currentAssigneeId])
+  @@index([origin])
   @@map("services")
 }
 
@@ -501,28 +602,28 @@ model Task {
 
 // Document
 model Document {
-  id           String         @id @default(uuid())
-  firmId       String
-  clientId     String? // Document belongs to Client (optional for self-documents)
-  teamMemberId String? // Team Member who uploaded (if applicable)
-  serviceId    String? // Optional: linked to a service
+  id             String         @id @default(uuid())
+  firmId         String
+  clientId       String? // Document belongs to Client (optional for self-documents)
+  teamMemberId   String? // Team Member who uploaded (if applicable)
+  serviceId      String? // Optional: linked to a service
   uploadedById   String? // ID of user who uploaded (Admin, SuperAdmin, PM, TM, Client)
   uploadedByRole String? // Role of uploader: "SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER", "CLIENT"
-  fileName     String
-  fileType     String // MIME type
-  fileSize     BigInt // Size in bytes
-  storagePath  String // Path to file in storage
-  folderPath   String? // Organized folder path
-  documentType DocumentType?
-  description  String?
-  version      Int            @default(1)
-  status       DocumentStatus @default(PENDING)
-  uploadStatus String         @default("DRAFT") // "DRAFT" or "SUBMITTED"
-  submittedAt  DateTime?
-  assignedTo   String? // Team Member who picked this work
-  approvedAt   DateTime?
-  uploadedAt   DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  fileName       String
+  fileType       String // MIME type
+  fileSize       BigInt // Size in bytes
+  storagePath    String // Path to file in storage
+  folderPath     String? // Organized folder path
+  documentType   DocumentType?
+  description    String?
+  version        Int            @default(1)
+  status         DocumentStatus @default(PENDING)
+  uploadStatus   String         @default("DRAFT") // "DRAFT" or "SUBMITTED"
+  submittedAt    DateTime?
+  assignedTo     String? // Team Member who picked this work
+  approvedAt     DateTime?
+  uploadedAt     DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   // Hide/Restore functionality
   hiddenFrom String[]  @default([])
@@ -627,13 +728,13 @@ model Payment {
 
 // Client Assignment (Team Member-Client relationship)
 model ClientAssignment {
-  id           String     @id @default(uuid())
+  id           String   @id @default(uuid())
   teamMemberId String
   clientId     String
   assignedBy   String // Admin/SuperAdmin/ProjectManager who made the assignment
   notes        String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
   teamMember TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
@@ -695,4 +796,338 @@ model Setting {
   @@index([firmId])
   @@index([category])
   @@map("settings")
+}
+
+// ============================================
+// ENHANCED SERVICE WORKFLOW MODELS
+// ============================================
+
+// ClientPMAssignment (Many-to-Many Client-PM Relationship)
+// Replaces the old one-to-one managedBy relationship
+// One client can have multiple PMs with different roles
+model ClientPMAssignment {
+  id               String @id @default(uuid())
+  firmId           String
+  clientId         String
+  projectManagerId String
+
+  // Role of this PM for this client
+  role  String? // "PRIMARY", "GST_HANDLER", "ITR_HANDLER", "AUDIT_HANDLER", etc.
+  notes String? // Additional notes about this assignment
+
+  // Audit Trail
+  assignedBy     String // User ID who created this assignment
+  assignedByRole String // "SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER"
+  assignedByName String // For quick display
+  assignedAt     DateTime @default(now())
+
+  // Status
+  isActive      Boolean   @default(true)
+  removedAt     DateTime?
+  removedBy     String?
+  removedByRole String?
+  removalReason String?
+
+  // Relations
+  firm           Firm           @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client         Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectManager ProjectManager @relation(fields: [projectManagerId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, projectManagerId]) // One PM per client per assignment
+  @@index([firmId])
+  @@index([clientId])
+  @@index([projectManagerId])
+  @@index([isActive])
+  @@map("client_pm_assignments")
+}
+
+// ServiceRequest (Client-Initiated Service Request)
+// When client requests a new service, it goes through approval workflow
+model ServiceRequest {
+  id       String @id @default(uuid())
+  firmId   String
+  clientId String
+
+  // Request Details
+  serviceType      ServiceType
+  title            String
+  description      String?
+  urgency          RequestUrgency @default(NORMAL)
+  preferredDueDate DateTime?
+  financialYear    String? // "2024-25"
+  assessmentYear   String? // "2025-26"
+
+  // Request Status
+  status RequestStatus @default(PENDING)
+
+  // Review Information
+  reviewedBy      String? // PM/Admin who reviewed
+  reviewedByRole  String?
+  reviewedByName  String?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  approvalNotes   String?
+
+  // Quoted Fee (can be set during approval)
+  quotedFee Decimal? @db.Decimal(10, 2)
+
+  // Link to created Service (after approval)
+  convertedToService Service? // One-to-one relation
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm        Firm                @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client      Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  attachments RequestAttachment[]
+
+  @@index([firmId])
+  @@index([clientId])
+  @@index([status])
+  @@index([serviceType])
+  @@index([createdAt])
+  @@map("service_requests")
+}
+
+// RequestAttachment (Files attached to Service Request)
+model RequestAttachment {
+  id          String   @id @default(uuid())
+  requestId   String
+  fileName    String
+  fileType    String // MIME type
+  fileSize    BigInt // Size in bytes
+  storagePath String // Path to file in storage
+  uploadedAt  DateTime @default(now())
+
+  // Relations
+  request ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("request_attachments")
+}
+
+// ServiceAssignment (Assignment & Delegation Tracking)
+// Tracks who is assigned to work on a service
+// Supports chain delegation: PM can delegate to TM, TM can delegate to another TM
+model ServiceAssignment {
+  id        String @id @default(uuid())
+  firmId    String
+  serviceId String
+
+  // Assignee Information
+  assigneeId   String // PM or TM ID
+  assigneeType String // "PROJECT_MANAGER" or "TEAM_MEMBER"
+  assigneeName String // For quick display
+
+  // Assigner Information (Who made this assignment)
+  assignedBy     String // User ID
+  assignedByType String // "SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER"
+  assignedByName String // For quick display
+
+  // Chain Delegation Tracking
+  delegationLevel      Int     @default(1) // 1 = initial, 2 = first delegation, etc.
+  previousAssignmentId String? // Link to previous assignment in chain
+  delegationReason     String? // Why was it delegated?
+
+  // Assignment Type
+  assignmentType String // "INITIAL", "DELEGATION", "RE_ASSIGNMENT", "TAKE_BACK"
+
+  // Status
+  status String @default("ACTIVE") // "ACTIVE", "DELEGATED", "COMPLETED", "REVOKED"
+
+  // Timestamps
+  assignedAt    DateTime  @default(now())
+  acceptedAt    DateTime? // When assignee accepted
+  completedAt   DateTime? // When assignee completed work
+  revokedAt     DateTime?
+  revokedBy     String?
+  revokedReason String?
+
+  // Relations
+  firm           Firm            @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  service        Service         @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  projectManager ProjectManager? @relation(fields: [assigneeId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([serviceId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([delegationLevel])
+  @@map("service_assignments")
+}
+
+// ServiceStatusHistory (Complete Audit Trail)
+// Records every status change with full context
+model ServiceStatusHistory {
+  id        String @id @default(uuid())
+  firmId    String
+  serviceId String
+
+  // Status Change
+  fromStatus ServiceStatus? // null for initial creation
+  toStatus   ServiceStatus
+
+  // Action that triggered this change
+  action String // "CREATE", "ASSIGN", "START_WORK", "REQUEST_DOCUMENTS", etc.
+
+  // Who made the change
+  changedBy     String // User ID
+  changedByType String // "SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER", "CLIENT", "SYSTEM"
+  changedByName String // For quick display
+
+  // Context
+  reason   String? // Optional reason for status change
+  notes    String? // Additional notes
+  metadata Json? // Additional structured data (e.g., document list for WAITING_FOR_CLIENT)
+
+  changedAt DateTime @default(now())
+
+  // Relations
+  firm    Firm    @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([firmId])
+  @@index([serviceId])
+  @@index([action])
+  @@index([changedAt])
+  @@map("service_status_history")
+}
+
+// ============================================
+// SERVICE CONFIGURATION MASTER TABLES
+// ============================================
+
+// ServiceCategory - Top-level service categories
+// System defaults + firm-level customization
+model ServiceCategory {
+  id          String  @id @default(uuid())
+  firmId      String? // NULL = system default, applies to all firms
+  code        String  // "INCOME_TAX", "GST", "ROC_MCA", etc.
+  name        String  // "Income Tax Services"
+  description String?
+  icon        String? // Icon name for UI
+  displayOrder Int    @default(0)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm         Firm?              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  serviceTypes ServiceTypeMaster[]
+
+  @@unique([firmId, code])
+  @@index([firmId])
+  @@index([isActive])
+  @@map("service_categories")
+}
+
+// ServiceTypeMaster - Service types within a category
+// E.g., "ITR Filing", "TDS Return" under Income Tax
+model ServiceTypeMaster {
+  id         String @id @default(uuid())
+  categoryId String
+  firmId     String? // NULL = system default
+
+  code        String  // "ITR_FILING", "GST_RETURN", "TAX_AUDIT"
+  name        String  // "ITR Filing"
+  description String?
+
+  // Configuration flags
+  hasSubTypes           Boolean @default(false) // Does this type have sub-types?
+  requiresFinancialYear Boolean @default(true)
+  requiresAssessmentYear Boolean @default(false)
+  requiresQuarter       Boolean @default(false)
+  requiresPeriod        Boolean @default(false) // For monthly returns
+
+  // Defaults
+  defaultDueDays  Int?     // Days from creation to due date
+  defaultDueDate  String?  // Fixed date like "July 31" or "11th of month"
+  defaultFee      Decimal? @db.Decimal(10, 2)
+
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  category     ServiceCategory         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  firm         Firm?                   @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  subTypes     ServiceSubType[]
+  documentRequirements DocumentRequirement[]
+
+  @@unique([firmId, code])
+  @@index([categoryId])
+  @@index([firmId])
+  @@index([isActive])
+  @@map("service_type_masters")
+}
+
+// ServiceSubType - Sub-types for granular services
+// E.g., "ITR-1 (Salaried)", "ITR-3 (Business)" under ITR Filing
+model ServiceSubType {
+  id            String @id @default(uuid())
+  serviceTypeId String
+  firmId        String? // NULL = system default
+
+  code        String  // "ITR_1", "ITR_3", "GSTR_1", "GSTR_3B"
+  name        String  // "ITR-1 (Salaried Individual)"
+  description String?
+
+  // Who is this for?
+  applicableTo String? // "Salaried individuals with income ≤ ₹50L"
+
+  // Due date reference
+  dueDateReference String? // "July 31", "11th of month", etc.
+
+  // Default fee override
+  defaultFee Decimal? @db.Decimal(10, 2)
+
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  serviceType  ServiceTypeMaster       @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+  firm         Firm?                   @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  documentRequirements DocumentRequirement[]
+
+  @@unique([serviceTypeId, code])
+  @@index([serviceTypeId])
+  @@index([firmId])
+  @@index([isActive])
+  @@map("service_sub_types")
+}
+
+// DocumentRequirement - Documents required for each service type
+// Pre-populated from implementation_Plan.md document requirements
+model DocumentRequirement {
+  id             String  @id @default(uuid())
+  serviceTypeId  String
+  serviceSubTypeId String? // Optional - for sub-type specific requirements
+  firmId         String? // NULL = system default
+
+  documentName String  // "Form 16", "PAN Card", "Bank Statement"
+  description  String? // "TDS Certificate from employer"
+  category     String? // "Identity", "Financial", "Tax", "Business"
+
+  isMandatory  Boolean @default(true)
+  displayOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  serviceType    ServiceTypeMaster @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+  serviceSubType ServiceSubType?   @relation(fields: [serviceSubTypeId], references: [id], onDelete: Cascade)
+  firm           Firm?             @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@index([serviceTypeId])
+  @@index([serviceSubTypeId])
+  @@index([firmId])
+  @@map("document_requirements")
 }

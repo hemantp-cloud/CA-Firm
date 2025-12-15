@@ -33,7 +33,7 @@ interface Client {
   lastLoginAt: string | null
 }
 
-export default function CAClientsPage() {
+export default function ProjectManagerClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -62,7 +62,7 @@ export default function CAClientsPage() {
     }
 
     try {
-      await api.delete(`/ca/clients/${id}`)
+      await api.delete(`/project-manager/clients/${id}`)
       fetchClients()
     } catch (error) {
       console.error("Failed to delete client:", error)
@@ -98,7 +98,7 @@ export default function CAClientsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Clients</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage your customers (CLIENT role)
+            Manage your clients
           </p>
         </div>
         <Button asChild className="bg-green-600 hover:bg-green-700">
@@ -198,13 +198,13 @@ export default function CAClientsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem asChild>
-                            <Link href={`/ca/clients/${client.id}`} className="cursor-pointer">
+                            <Link href={`/project-manager/clients/${client.id}`} className="cursor-pointer">
                               <Eye className="h-4 w-4 mr-2" />
                               View
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
-                            <Link href={`/ca/clients/${client.id}/edit`} className="cursor-pointer">
+                            <Link href={`/project-manager/clients/${client.id}/edit`} className="cursor-pointer">
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
                             </Link>

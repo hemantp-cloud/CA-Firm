@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
@@ -27,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Building2 } from "lucide-react"
+import { Building2, Settings } from "lucide-react"
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/project-manager/dashboard" },
@@ -36,16 +37,21 @@ const navigationItems = [
   { icon: Briefcase, label: "Services", href: "/project-manager/services" },
   { icon: FileText, label: "Documents", href: "/project-manager/documents" },
   { icon: CreditCard, label: "Invoices", href: "/project-manager/invoices" },
-  { icon: User, label: "Profile", href: "/project-manager/profile" },
+  { icon: Settings, label: "Settings", href: "/project-manager/settings" },
 ]
 
-export default function CALayout({
+export default function ProjectManagerLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleLogout = async () => {
     // Clear local storage first
@@ -158,7 +164,7 @@ export default function CALayout({
         </header>
 
         {/* Desktop Header - Desktop Only */}
-        <header className="hidden lg:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
+        <header suppressHydrationWarning className="hidden lg:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -171,40 +177,42 @@ export default function CALayout({
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center">
-                    <span className="text-white text-xs font-semibold">
-                      {getUserInitials(session?.user?.name)}
-                    </span>
-                  </div>
-                  <div className="hidden md:block text-left">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {session?.user?.name || "Project Manager"}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {(session?.user as any)?.role || "PROJECT_MANAGER"}
-                    </p>
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/project-manager/profile" className="cursor-pointer">
-                    <User className="h-4 w-4 mr-2" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} variant="destructive">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {mounted && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center">
+                      <span className="text-white text-xs font-semibold">
+                        {getUserInitials(session?.user?.name)}
+                      </span>
+                    </div>
+                    <div className="hidden md:block text-left">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {session?.user?.name || "Project Manager"}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {(session?.user as any)?.role || "PROJECT_MANAGER"}
+                      </p>
+                    </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/project-manager/profile" className="cursor-pointer">
+                      <User className="h-4 w-4 mr-2" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} variant="destructive">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </header>
 

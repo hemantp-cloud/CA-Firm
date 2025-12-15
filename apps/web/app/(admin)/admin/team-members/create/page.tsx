@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation"
 
-// Redirect /admin/trainees/create to /admin/trainees/new
-export default function CreateTraineePage() {
-    redirect("/admin/trainees/new")
+// Redirect /admin/team-members/create to /admin/team-members/new
+export default function CreateTeamMemberPage() {
+    redirect("/admin/team-members/new")
 }

@@ -50,7 +50,7 @@ export default function EditUserPage() {
     const fetchUser = async () => {
         try {
             setIsLoading(true)
-            const response = await api.get(`/ca/clients/${userId}`)
+            const response = await api.get(`/project-manager/clients/${userId}`)
             if (response.data.success) {
                 const user = response.data.data
                 setValue("name", user.name)
@@ -73,10 +73,10 @@ export default function EditUserPage() {
         setError(null)
 
         try {
-            const response = await api.put(`/ca/clients/${userId}`, data)
+            const response = await api.put(`/project-manager/clients/${userId}`, data)
 
             if (response.data.success) {
-                router.push(`/ca/clients/${userId}`)
+                router.push(`/project-manager/clients/${userId}`)
                 router.refresh()
             } else {
                 setError(response.data.message || "Failed to update user")
@@ -106,7 +106,7 @@ export default function EditUserPage() {
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/ca/clients/${userId}`}>
+                    <Link href={`/project-manager/clients/${userId}`}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back
                     </Link>
@@ -207,7 +207,7 @@ export default function EditUserPage() {
                                 )}
                             </Button>
                             <Button type="button" variant="outline" asChild>
-                                <Link href={`/ca/clients/${userId}`}>Cancel</Link>
+                                <Link href={`/project-manager/clients/${userId}`}>Cancel</Link>
                             </Button>
                         </div>
                     </form>

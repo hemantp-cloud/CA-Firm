@@ -1,122 +1,92 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, UserCircle, Mail, Phone, Shield, Briefcase } from "lucide-react"
+import { use } from "react"
+import { ArrowLeft, Edit, Trash2, User, Mail, Phone, CreditCard, Calendar, Building2, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import Link from "next/link"
 import api from "@/lib/api"
+import { useRouter } from "next/navigation"
 
-interface User {
+interface Client {
   id: string
   name: string
   email: string
   phone: string | null
-  role: string
-  clientId: string | null
-  clientName: string | null
+  companyName: string | null
   pan: string | null
-  aadhar: string | null
+  gstin: string | null
   address: string | null
+  city: string | null
+  state: string | null
+  pincode: string | null
   isActive: boolean
-  twoFactorEnabled: boolean
-  lastLoginAt: string | null
   createdAt: string
-  services: Array<{
-    id: string
-    title: string
-    type: string
-    status: string
-    dueDate: string | null
-  }>
+  lastLoginAt: string | null
 }
 
-export default function UserDetailsPage() {
-  const params = useParams()
+export default function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
-  const userId = params.id as string
-
-  const [user, setUser] = useState<User | null>(null)
+  const [client, setClient] = useState<Client | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (userId) {
-      fetchUser()
-    }
-  }, [userId])
+    fetchClient()
+  }, [id])
 
-  const fetchUser = async () => {
+  const fetchClient = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get(`/admin/client/${userId}`)
+      const response = await api.get(`/admin/clients/${id}`)
       if (response.data.success) {
-        setUser(response.data.data)
+        setClient(response.data.data)
       }
     } catch (error) {
-      console.error("Failed to fetch user:", error)
+      console.error("Failed to fetch client:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleDelete = async () => {
-    if (!confirm("Are you sure you want to deactivate this user?")) {
+  const handleDeactivate = async () => {
+    if (!confirm("Are you sure you want to deactivate this Client? They won't be able to log in.")) {
       return
     }
 
     try {
-      await api.delete(`/admin/client/${userId}`)
-      router.push("/admin/client")
+      const response = await api.delete(`/admin/clients/${id}`)
+      if (response.data.success) {
+        alert("Client deactivated successfully!")
+        router.push("/admin/client")
+      }
     } catch (error) {
-      console.error("Failed to delete user:", error)
-      alert("Failed to deactivate user")
+      console.error("Failed to deactivate:", error)
+      alert("Failed to deactivate Client")
     }
-  }
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Never"
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  }
-
-  const formatStatus = (status: string) => {
-    return status
-      .split("_")
-      .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-      .join(" ")
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-gray-500">Loading user details...</p>
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <p className="text-gray-500">Loading client details...</p>
+        </div>
       </div>
     )
   }
 
-  if (!user) {
+  if (!client) {
     return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <p className="text-gray-500 mb-4">User not found</p>
-        <Button asChild>
-          <Link href="/admin/client">Back to Users</Link>
-        </Button>
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <p className="text-gray-500">Client not found</p>
+          <Button asChild className="mt-4">
+            <Link href="/admin/client">Back to Clients</Link>
+          </Button>
+        </div>
       </div>
     )
   }
@@ -133,190 +103,178 @@ export default function UserDetailsPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{user.name}</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">User details and services</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{client.name}</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Client Details</p>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href={`/admin/client/${userId}/edit`}>
+          <Button asChild variant="outline">
+            <Link href={`/admin/client/${client.id}/edit`}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Link>
           </Button>
-          <Button variant="outline" onClick={handleDelete} className="text-red-600 hover:text-red-700">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Deactivate
-          </Button>
         </div>
       </div>
 
-      {/* User Information */}
+      {/* Status Badge */}
+      <div>
+        <Badge
+          className={
+            client.isActive
+              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+          }
+        >
+          {client.isActive ? "Active" : "Inactive"}
+        </Badge>
+      </div>
+
+      {/* Contact Information */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">User Information</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Contact Information</h2>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex items-start gap-3">
-              <UserCircle className="h-5 w-5 text-gray-400 mt-0.5" />
+              <User className="h-5 w-5 text-gray-400 mt-0.5" />
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Name</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.name}</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name</p>
+                <p className="text-gray-900 dark:text-white">{client.name}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
               <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.email}</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
+                <p className="text-gray-900 dark:text-white">{client.email}</p>
               </div>
             </div>
 
-            {user.phone && (
+            <div className="flex items-start gap-3">
+              <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone</p>
+                <p className="text-gray-900 dark:text-white">{client.phone || "-"}</p>
+              </div>
+            </div>
+
+            {client.companyName && (
               <div className="flex items-start gap-3">
-                <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
+                <Building2 className="h-5 w-5 text-gray-400 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Phone</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{user.phone}</p>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Company Name</p>
+                  <p className="text-gray-900 dark:text-white">{client.companyName}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Business Information */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Business Information</h2>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {client.pan && (
+              <div className="flex items-start gap-3">
+                <CreditCard className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">PAN</p>
+                  <p className="text-gray-900 dark:text-white">{client.pan}</p>
                 </div>
               </div>
             )}
 
-            <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Role</p>
-                <Badge className="mt-1">{user.role}</Badge>
-              </div>
-            </div>
-
-            {user.clientName && (
+            {client.gstin && (
               <div className="flex items-start gap-3">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Client</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.clientName}</p>
+                <CreditCard className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">GSTIN</p>
+                  <p className="text-gray-900 dark:text-white">{client.gstin}</p>
+                </div>
               </div>
             )}
 
-            {user.pan && (
-              <div className="flex items-start gap-3">
-                <p className="text-sm text-gray-500 dark:text-gray-400">PAN</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.pan}</p>
-              </div>
-            )}
-
-            {user.aadhar && (
-              <div className="flex items-start gap-3">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Aadhar</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.aadhar}</p>
-              </div>
-            )}
-
-            {user.address && (
+            {client.address && (
               <div className="flex items-start gap-3 md:col-span-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Address</p>
-                <p className="font-medium text-gray-900 dark:text-white">{user.address}</p>
+                <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Address</p>
+                  <p className="text-gray-900 dark:text-white">
+                    {client.address}
+                    {client.city && `, ${client.city}`}
+                    {client.state && `, ${client.state}`}
+                    {client.pincode && ` - ${client.pincode}`}
+                  </p>
+                </div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Account Information */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Account Information</h2>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex items-start gap-3">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
-              <Badge
-                className={
-                  user.isActive
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                }
-              >
-                {user.isActive ? "Active" : "Inactive"}
-              </Badge>
+              <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Joined</p>
+                <p className="text-gray-900 dark:text-white">
+                  {new Date(client.createdAt).toLocaleDateString()}
+                </p>
+              </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <p className="text-sm text-gray-500 dark:text-gray-400">2FA</p>
-              <Badge
-                className={
-                  user.twoFactorEnabled
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                }
-              >
-                {user.twoFactorEnabled ? "Enabled" : "Disabled"}
-              </Badge>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Last Login</p>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {formatDate(user.lastLoginAt)}
-              </p>
+              <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Login</p>
+                <p className="text-gray-900 dark:text-white">
+                  {client.lastLoginAt ? new Date(client.lastLoginAt).toLocaleString() : "Never"}
+                </p>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Services List */}
-      {user.role === "CLIENT" && (
-        <Card>
+      {/* Danger Zone */}
+      {client.isActive && (
+        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Services ({user.services.length})
-              </h2>
-              <Button asChild size="sm">
-                <Link href={`/admin/services/new?userId=${user.id}`}>
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Add Service
-                </Link>
-              </Button>
-            </div>
+            <h2 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">Danger Zone</h2>
           </CardHeader>
           <CardContent>
-            {user.services.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                <p>No services found for this user</p>
-                <Button asChild variant="outline" size="sm" className="mt-4">
-                  <Link href={`/admin/services/new?userId=${user.id}`}>Add First Service</Link>
-                </Button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-gray-900 dark:text-white">Deactivate Client</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  User won't be able to log in (can be reactivated from edit page)
+                </p>
               </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {user.services.map((service) => (
-                    <TableRow key={service.id}>
-                      <TableCell className="font-medium">{service.title}</TableCell>
-                      <TableCell>{formatStatus(service.type)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{formatStatus(service.status)}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {service.dueDate ? formatDate(service.dueDate) : "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/admin/services/${service.id}`}>View</Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+              <Button
+                variant="outline"
+                className="bg-yellow-600 text-white hover:bg-yellow-700"
+                onClick={handleDeactivate}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Deactivate
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
     </div>
   )
 }
-

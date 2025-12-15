@@ -1,139 +1,114 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
-import { ArrowLeft, Loader2, Save } from "lucide-react"
+import { use } from "react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, Loader2, Save, User, Mail, Phone, CreditCard, Building2, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
 import api from "@/lib/api"
 
-const userSchema = z
-    .object({
-        name: z.string().min(1, "Name is required"),
-        email: z.string().email("Invalid email address"),
-        phone: z.string().optional(),
-        role: z.enum(["CA", "CLIENT"]),
-        clientId: z.string().optional(),
-        pan: z.string().optional(),
-        aadhar: z.string().optional(),
-        address: z.string().optional(),
-    })
-    .refine(
-        (data) => {
-            // If role is CLIENT, clientId is required
-            if (data.role === "CLIENT" && !data.clientId) {
-                return false
-            }
-            return true
-        },
-        {
-            message: "Client is required for CLIENT role",
-            path: ["clientId"],
-        }
-    )
-
-type UserFormData = z.infer<typeof userSchema>
-
-interface Client {
-    id: string
-    name: string
-}
-
-export default function EditUserPage() {
+export default function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params)
     const router = useRouter()
-    const params = useParams()
-    const userId = params.id as string
     const [isLoading, setIsLoading] = useState(true)
     const [isSaving, setIsSaving] = useState(false)
-    const [clients, setClients] = useState<Client[]>([])
     const [error, setError] = useState<string | null>(null)
+    const [success, setSuccess] = useState<string | null>(null)
 
-    const {
-        register,
-        handleSubmit,
-        setValue,
-        watch,
-        formState: { errors },
-    } = useForm<UserFormData>({
-        resolver: zodResolver(userSchema),
+    const [formData, setFormData] = useState({
+        name: "",
+        email: "",
+        phone: "",
+        companyName: "",
+        pan: "",
+        gstin: "",
+        aadhar: "",
+        address: "",
+        city: "",
+        state: "",
+        pincode: "",
     })
 
-    const role = watch("role")
-
     useEffect(() => {
-        if (userId) {
-            fetchUser()
-            fetchClients()
-        }
-    }, [userId])
+        fetchClient()
+    }, [id])
 
-    const fetchUser = async () => {
+    const fetchClient = async () => {
         try {
             setIsLoading(true)
-            const response = await api.get(`/admin/client/${userId}`)
+            const response = await api.get(`/admin/clients/${id}`)
+
             if (response.data.success) {
-                const user = response.data.data
-                setValue("name", user.name)
-                setValue("email", user.email)
-                setValue("phone", user.phone || "")
-                setValue("role", user.role)
-                setValue("clientId", user.clientId || undefined)
-                setValue("pan", user.pan || "")
-                setValue("aadhar", user.aadhar || "")
-                setValue("address", user.address || "")
+                const client = response.data.data
+                setFormData({
+                    name: client.name || "",
+                    email: client.email || "",
+                    phone: client.phone || "",
+                    companyName: client.companyName || "",
+                    pan: client.pan || "",
+                    gstin: client.gstin || "",
+                    aadhar: client.aadhar || "",
+                    address: client.address || "",
+                    city: client.city || "",
+                    state: client.state || "",
+                    pincode: client.pincode || "",
+                })
+            } else {
+                setError("Failed to fetch client")
             }
-        } catch (error) {
-            console.error("Failed to fetch user:", error)
-            setError("Failed to load user details")
+        } catch (err) {
+            console.error("Failed to fetch client:", err)
+            setError("Failed to load client details")
         } finally {
             setIsLoading(false)
         }
     }
 
-    const fetchClients = async () => {
-        try {
-            const response = await api.get("/admin/ca")
-            if (response.data.success) {
-                setClients(response.data.data)
-            }
-        } catch (error) {
-            console.error("Failed to fetch clients:", error)
-        }
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
     }
 
-    const onSubmit = async (data: UserFormData) => {
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
         setIsSaving(true)
         setError(null)
+        setSuccess(null)
+
+        if (!formData.name.trim()) {
+            setError("Name is required")
+            setIsSaving(false)
+            return
+        }
 
         try {
-            const response = await api.put(`/admin/client/${userId}`, data)
+            const response = await api.put(`/admin/clients/${id}`, {
+                name: formData.name,
+                phone: formData.phone || null,
+                companyName: formData.companyName || null,
+                pan: formData.pan || null,
+                gstin: formData.gstin || null,
+                aadhar: formData.aadhar || null,
+                address: formData.address || null,
+                city: formData.city || null,
+                state: formData.state || null,
+                pincode: formData.pincode || null,
+            })
 
             if (response.data.success) {
-                router.push(`/admin/client/${userId}`)
-                router.refresh()
+                setSuccess("Client updated successfully!")
+                setTimeout(() => {
+                    router.push("/admin/client")
+                }, 1500)
             } else {
-                setError(response.data.message || "Failed to update user")
+                setError("Failed to update client")
             }
         } catch (err: any) {
-            console.error("Update user error:", err)
-            setError(
-                err.response?.data?.message ||
-                err.message ||
-                "Failed to update user. Please try again."
-            )
+            console.error("Update error:", err)
+            setError(err.message || "Failed to update client")
         } finally {
             setIsSaving(false)
         }
@@ -141,166 +116,235 @@ export default function EditUserPage() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin text-green-600" />
             </div>
         )
     }
 
     return (
-        <div className="space-y-6">
+        <div className="max-w-4xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/admin/client/${userId}`}>
+                    <Link href="/admin/client">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back
                     </Link>
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Edit User</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Edit Client</h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        Update user account details
+                        Update client details
                     </p>
                 </div>
             </div>
 
-            {/* Form */}
+            {/* Form Card */}
             <Card>
-                <CardHeader>
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">User Information</h2>
+                <CardHeader className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-t-lg">
+                    <CardTitle>Client Details</CardTitle>
+                    <CardDescription className="text-green-100">
+                        Edit the information below
+                    </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-6">
                     {error && (
-                        <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                        <div className="mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                             <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Name */}
-                            <div>
-                                <Label htmlFor="name">
-                                    Name <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    id="name"
-                                    {...register("name")}
-                                    className={errors.name ? "border-red-500" : ""}
-                                />
-                                {errors.name && (
-                                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                        {errors.name.message}
-                                    </p>
-                                )}
-                            </div>
+                    {success && (
+                        <div className="mb-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                            <p className="text-sm text-green-800 dark:text-green-200">{success}</p>
+                        </div>
+                    )}
 
-                            {/* Email (Read Only) */}
-                            <div>
-                                <Label htmlFor="email">
-                                    Email <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    {...register("email")}
-                                    disabled
-                                    className="bg-gray-100 dark:bg-gray-800"
-                                />
-                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Email cannot be changed
-                                </p>
-                            </div>
-
-                            {/* Phone */}
-                            <div>
-                                <Label htmlFor="phone">Phone</Label>
-                                <Input id="phone" {...register("phone")} />
-                            </div>
-
-                            {/* Role */}
-                            <div>
-                                <Label htmlFor="role">
-                                    Role <span className="text-red-500">*</span>
-                                </Label>
-                                <Select
-                                    value={role || ""}
-                                    onValueChange={(value) => {
-                                        setValue("role", value as "CA" | "CLIENT")
-                                        if (value === "CA") {
-                                            setValue("clientId", undefined)
-                                        }
-                                    }}
-                                >
-                                    <SelectTrigger className={errors.role ? "border-red-500" : ""}>
-                                        <SelectValue placeholder="Select role" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="CA">CA</SelectItem>
-                                        <SelectItem value="CLIENT">CLIENT</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                {errors.role && (
-                                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                        {errors.role.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Client (only if role is CLIENT) */}
-                            {role === "CLIENT" && (
-                                <div>
-                                    <Label htmlFor="clientId">
-                                        Client <span className="text-red-500">*</span>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Contact Information */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Contact Information</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Name */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="name" className="flex items-center gap-2">
+                                        <User className="h-4 w-4 text-gray-500" />
+                                        Full Name <span className="text-red-500">*</span>
                                     </Label>
-                                    <Select
-                                        value={watch("clientId") || ""}
-                                        onValueChange={(value) => setValue("clientId", value)}
-                                    >
-                                        <SelectTrigger className={errors.clientId ? "border-red-500" : ""}>
-                                            <SelectValue placeholder="Select client" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {clients.map((client) => (
-                                                <SelectItem key={client.id} value={client.id}>
-                                                    {client.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.clientId && (
-                                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                            {errors.clientId.message}
-                                        </p>
-                                    )}
+                                    <Input
+                                        id="name"
+                                        name="name"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                        className="h-11"
+                                    />
                                 </div>
-                            )}
 
-                            {/* PAN (for CLIENT role) */}
-                            {role === "CLIENT" && (
-                                <div>
-                                    <Label htmlFor="pan">PAN</Label>
-                                    <Input id="pan" {...register("pan")} />
+                                {/* Email (Read-only) */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="email" className="flex items-center gap-2">
+                                        <Mail className="h-4 w-4 text-gray-500" />
+                                        Email Address
+                                    </Label>
+                                    <Input
+                                        id="email"
+                                        name="email"
+                                        value={formData.email}
+                                        disabled
+                                        className="h-11 bg-gray-50 dark:bg-gray-800"
+                                    />
+                                    <p className="text-xs text-gray-500">Email cannot be changed</p>
                                 </div>
-                            )}
 
-                            {/* Aadhar (for CLIENT role) */}
-                            {role === "CLIENT" && (
-                                <div>
-                                    <Label htmlFor="aadhar">Aadhar</Label>
-                                    <Input id="aadhar" {...register("aadhar")} />
+                                {/* Phone */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="phone" className="flex items-center gap-2">
+                                        <Phone className="h-4 w-4 text-gray-500" />
+                                        Phone Number
+                                    </Label>
+                                    <Input
+                                        id="phone"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                        placeholder="+91 98765 43210"
+                                        className="h-11"
+                                    />
                                 </div>
-                            )}
 
-                            {/* Address */}
-                            <div className={role === "CLIENT" ? "md:col-span-2" : ""}>
-                                <Label htmlFor="address">Address</Label>
-                                <Input id="address" {...register("address")} />
+                                {/* Company Name */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="companyName" className="flex items-center gap-2">
+                                        <Building2 className="h-4 w-4 text-gray-500" />
+                                        Company Name
+                                    </Label>
+                                    <Input
+                                        id="companyName"
+                                        name="companyName"
+                                        value={formData.companyName}
+                                        onChange={handleChange}
+                                        className="h-11"
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-4 pt-4">
+                        {/* Business Information */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Business Information</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* PAN */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="pan" className="flex items-center gap-2">
+                                        <CreditCard className="h-4 w-4 text-gray-500" />
+                                        PAN Number
+                                    </Label>
+                                    <Input
+                                        id="pan"
+                                        name="pan"
+                                        value={formData.pan}
+                                        onChange={handleChange}
+                                        placeholder="ABCDE1234F"
+                                        className="h-11 uppercase"
+                                    />
+                                    <p className="text-xs text-gray-500">Only edit if correcting data entry errors</p>
+                                </div>
+
+                                {/* GSTIN */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="gstin" className="flex items-center gap-2">
+                                        <CreditCard className="h-4 w-4 text-gray-500" />
+                                        GSTIN
+                                    </Label>
+                                    <Input
+                                        id="gstin"
+                                        name="gstin"
+                                        value={formData.gstin}
+                                        onChange={handleChange}
+                                        placeholder="22AAAAA0000A1Z5"
+                                        className="h-11 uppercase"
+                                    />
+                                </div>
+
+                                {/* Aadhar */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="aadhar" className="flex items-center gap-2">
+                                        <CreditCard className="h-4 w-4 text-gray-500" />
+                                        Aadhar Number
+                                    </Label>
+                                    <Input
+                                        id="aadhar"
+                                        name="aadhar"
+                                        value={formData.aadhar}
+                                        onChange={handleChange}
+                                        placeholder="1234 5678 9012"
+                                        className="h-11"
+                                    />
+                                    <p className="text-xs text-gray-500">Only edit if correcting data entry errors</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Address Information */}
+                        <div>
+                            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Address</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Address */}
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label htmlFor="address" className="flex items-center gap-2">
+                                        <MapPin className="h-4 w-4 text-gray-500" />
+                                        Street Address
+                                    </Label>
+                                    <Input
+                                        id="address"
+                                        name="address"
+                                        value={formData.address}
+                                        onChange={handleChange}
+                                        className="h-11"
+                                    />
+                                </div>
+
+                                {/* City */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="city">City</Label>
+                                    <Input
+                                        id="city"
+                                        name="city"
+                                        value={formData.city}
+                                        onChange={handleChange}
+                                        className="h-11"
+                                    />
+                                </div>
+
+                                {/* State */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="state">State</Label>
+                                    <Input
+                                        id="state"
+                                        name="state"
+                                        value={formData.state}
+                                        onChange={handleChange}
+                                        className="h-11"
+                                    />
+                                </div>
+
+                                {/* Pincode */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="pincode">Pincode</Label>
+                                    <Input
+                                        id="pincode"
+                                        name="pincode"
+                                        value={formData.pincode}
+                                        onChange={handleChange}
+                                        placeholder="400001"
+                                        className="h-11"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-slate-700">
                             <Button type="submit" disabled={isSaving} className="bg-green-600 hover:bg-green-700">
                                 {isSaving ? (
                                     <>
@@ -315,10 +359,87 @@ export default function EditUserPage() {
                                 )}
                             </Button>
                             <Button type="button" variant="outline" asChild>
-                                <Link href={`/admin/client/${userId}`}>Cancel</Link>
+                                <Link href="/admin/client">Cancel</Link>
                             </Button>
                         </div>
                     </form>
+                </CardContent>
+            </Card>
+
+            {/* Danger Zone */}
+            <Card className="border-red-200 dark:border-red-800">
+                <CardHeader className="bg-red-50 dark:bg-red-900/20">
+                    <CardTitle className="text-red-600 dark:text-red-400">Danger Zone</CardTitle>
+                    <CardDescription>Irreversible actions</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                    {/* Deactivate */}
+                    <div className="flex items-center justify-between p-4 border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                        <div>
+                            <p className="font-medium text-gray-900 dark:text-white">Deactivate Client</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                User won't be able to log in (can be reactivated)
+                            </p>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="bg-yellow-600 text-white hover:bg-yellow-700"
+                            onClick={async () => {
+                                if (!confirm("Are you sure you want to deactivate this Client? They won't be able to log in.")) return
+
+                                try {
+                                    const response = await api.delete(`/admin/clients/${id}`)
+
+                                    if (response.data.success) {
+                                        alert("Client deactivated successfully!")
+                                        router.push("/admin/client")
+                                    } else {
+                                        alert("Failed to deactivate")
+                                    }
+                                } catch (err) {
+                                    console.error("Deactivate error:", err)
+                                    alert("Failed to deactivate Client")
+                                }
+                            }}
+                        >
+                            Deactivate
+                        </Button>
+                    </div>
+
+                    {/* Delete Forever */}
+                    <div className="flex items-center justify-between p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                        <div>
+                            <p className="font-medium text-gray-900 dark:text-white">Permanently Delete Client</p>
+                            <p className="text-sm text-red-600 dark:text-red-400">
+                                ⚠️ This action CANNOT be undone! User will be removed from database.
+                            </p>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={async () => {
+                                if (!confirm("⚠️ WARNING: This will PERMANENTLY DELETE this Client from the database. This action CANNOT be undone! Are you absolutely sure?")) return
+                                if (!confirm("Final confirmation: Delete this Client permanently?")) return
+
+                                try {
+                                    const response = await api.delete(`/admin/clients/${id}/permanent`)
+
+                                    if (response.data.success) {
+                                        alert("Client permanently deleted!")
+                                        router.push("/admin/client")
+                                    } else {
+                                        alert("Failed to delete")
+                                    }
+                                } catch (err) {
+                                    console.error("Delete error:", err)
+                                    alert("Failed to delete Client")
+                                }
+                            }}
+                        >
+                            Delete Forever
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
         </div>

@@ -50,8 +50,8 @@ export default function TeamMembersPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Team Members (Trainees)</h1>
-                    <p className="text-gray-600">Manage trainee / staff users</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Team Members</h1>
+                    <p className="text-gray-600">Manage team member users</p>
                 </div>
                 <Link
                     href="/super-admin/team-members/new"
@@ -75,7 +75,7 @@ export default function TeamMembersPage() {
                             </svg>
                         </div>
                         <h3 className="text-lg font-medium text-gray-900">No team members yet</h3>
-                        <p className="mt-1 text-gray-500">Get started by adding a trainee or staff member.</p>
+                        <p className="mt-1 text-gray-500">Get started by adding a team member.</p>
                         <Link
                             href="/super-admin/team-members/new"
                             className="mt-4 inline-flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700"

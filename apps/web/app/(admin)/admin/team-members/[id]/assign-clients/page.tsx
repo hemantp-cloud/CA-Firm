@@ -24,8 +24,8 @@ interface AssignedClient {
 }
 
 export default function AssignClientsPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id: traineeId } = use(params)
-    const [trainee, setTrainee] = useState<any>(null)
+    const { id: teamMemberId } = use(params)
+    const [teamMember, setTeamMember] = useState<any>(null)
     const [allClients, setAllClients] = useState<Client[]>([])
     const [assignedClientIds, setAssignedClientIds] = useState<Set<string>>(new Set())
     const [isLoading, setIsLoading] = useState(true)
@@ -34,26 +34,25 @@ export default function AssignClientsPage({ params }: { params: Promise<{ id: st
 
     useEffect(() => {
         fetchData()
-    }, [traineeId])
+    }, [teamMemberId])
 
     const fetchData = async () => {
         try {
             setIsLoading(true)
 
-            // Fetch trainee details
-            const traineeResponse = await api.get(`/trainees/${traineeId}`)
-            if (traineeResponse.data.success) {
-                setTrainee(traineeResponse.data.data)
+            // Fetch team member details
+            const tmResponse = await api.get(`/admin/team-members/${teamMemberId}`)
+            if (tmResponse.data.success) {
+                setTeamMember(tmResponse.data.data)
 
                 // Extract assigned client IDs
                 const assigned = new Set<string>(
-                    traineeResponse.data.data.assignedClients?.map((ac: AssignedClient) => ac.client.id) || []
+                    tmResponse.data.data.assignedClients?.map((ac: AssignedClient) => ac.client.id) || []
                 )
                 setAssignedClientIds(assigned)
             }
 
-            // Fetch all clients (assuming there's an admin endpoint to get all clients)
-            // For now, we'll use the CA clients endpoint - you may need to adjust this
+            // Fetch all clients in the firm
             const clientsResponse = await api.get("/admin/client")
             if (clientsResponse.data.success) {
                 setAllClients(clientsResponse.data.data)
@@ -90,9 +89,9 @@ export default function AssignClientsPage({ params }: { params: Promise<{ id: st
         try {
             setIsSaving(true)
 
-            // Get the original assigned client IDs from the trainee data
+            // Get the original assigned client IDs from the team member data
             const originalAssignedIds = new Set<string>(
-                trainee?.assignedClients?.map((ac: AssignedClient) => ac.client.id) || []
+                teamMember?.assignedClients?.map((ac: AssignedClient) => ac.client.id) || []
             )
 
             // Find clients to assign (new ones)
@@ -103,14 +102,14 @@ export default function AssignClientsPage({ params }: { params: Promise<{ id: st
 
             // Assign new clients
             if (toAssign.length > 0) {
-                await api.post(`/trainees/${traineeId}/assign-clients`, {
+                await api.post(`/admin/team-members/${teamMemberId}/assign-clients`, {
                     clientIds: toAssign,
                 })
             }
 
             // Unassign removed clients
             if (toUnassign.length > 0) {
-                await api.post(`/trainees/${traineeId}/unassign-clients`, {
+                await api.post(`/admin/team-members/${teamMemberId}/unassign-clients`, {
                     clientIds: toUnassign,
                 })
             }
@@ -143,7 +142,7 @@ export default function AssignClientsPage({ params }: { params: Promise<{ id: st
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="sm" asChild>
-                    <Link href="/admin/trainees">
+                    <Link href="/admin/team-members">
                         <ArrowLeft className="h-4 w-4 mr-2" />
                         Back
                     </Link>
@@ -151,7 +150,7 @@ export default function AssignClientsPage({ params }: { params: Promise<{ id: st
                 <div className="flex-1">
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Assign Clients</h1>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">
-                        {trainee ? `Assign clients to ${trainee.name}` : "Loading..."}
+                        {teamMember ? `Assign clients to ${teamMember.name}` : "Loading..."}
                     </p>
                 </div>
                 <Button onClick={handleSave} disabled={isSaving || isLoading}>
@@ -276,7 +275,7 @@ export default function AssignClientsPage({ params }: { params: Promise<{ id: st
             {/* Save Button (Bottom) */}
             <div className="flex justify-end gap-4">
                 <Button variant="outline" asChild>
-                    <Link href="/admin/trainees">Cancel</Link>
+                    <Link href="/admin/team-members">Cancel</Link>
                 </Button>
                 <Button onClick={handleSave} disabled={isSaving || isLoading}>
                     {isSaving ? (

@@ -1,7 +1,20 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { UserCircle, Briefcase, Clock, CreditCard, Plus, Eye, FolderOpen, Folder, FileText } from "lucide-react"
+import { useSession } from "next-auth/react"
+import {
+  Users,
+  Briefcase,
+  Clock,
+  FileText,
+  Plus,
+  Eye,
+  ArrowRight,
+  TrendingUp,
+  UserPlus,
+  FolderPlus,
+  Activity,
+} from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,7 +25,7 @@ interface DashboardData {
   userCount: number
   activeServicesCount: number
   pendingServicesCount: number
-  pendingInvoicesCount: number
+  teamMemberCount: number
   recentUsers: Array<{
     id: string
     name: string
@@ -31,15 +44,13 @@ interface DashboardData {
   }>
 }
 
-export default function CADashboardPage() {
+export default function ProjectManagerDashboard() {
+  const { data: session } = useSession()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [clientDocuments, setClientDocuments] = useState<any[]>([])
-  const [isLoadingDocs, setIsLoadingDocs] = useState(true)
 
   useEffect(() => {
     fetchDashboardData()
-    fetchClientDocuments()
   }, [])
 
   const fetchDashboardData = async () => {
@@ -53,20 +64,6 @@ export default function CADashboardPage() {
       console.error("Failed to fetch dashboard data:", error)
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const fetchClientDocuments = async () => {
-    try {
-      setIsLoadingDocs(true)
-      const response = await api.get("/project-manager/client-documents")
-      if (response.data.success) {
-        setClientDocuments(response.data.data)
-      }
-    } catch (error) {
-      console.error("Failed to fetch client documents:", error)
-    } finally {
-      setIsLoadingDocs(false)
     }
   }
 
@@ -98,162 +95,203 @@ export default function CADashboardPage() {
     return colors[status] || colors.PENDING
   }
 
+  const stats = [
+    {
+      label: "My Clients",
+      value: dashboardData?.userCount || 0,
+      icon: Users,
+      color: "from-emerald-500 to-emerald-600",
+      bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      link: "/project-manager/clients",
+    },
+    {
+      label: "Team Members",
+      value: dashboardData?.teamMemberCount || 0,
+      icon: UserPlus,
+      color: "from-purple-500 to-purple-600",
+      bgColor: "bg-purple-50 dark:bg-purple-900/20",
+      iconColor: "text-purple-600 dark:text-purple-400",
+      link: "/project-manager/trainees",
+    },
+    {
+      label: "Active Services",
+      value: dashboardData?.activeServicesCount || 0,
+      icon: Briefcase,
+      color: "from-blue-500 to-blue-600",
+      bgColor: "bg-blue-50 dark:bg-blue-900/20",
+      iconColor: "text-blue-600 dark:text-blue-400",
+      link: "/project-manager/services",
+    },
+    {
+      label: "Pending Tasks",
+      value: dashboardData?.pendingServicesCount || 0,
+      icon: Clock,
+      color: "from-orange-500 to-orange-600",
+      bgColor: "bg-orange-50 dark:bg-orange-900/20",
+      iconColor: "text-orange-600 dark:text-orange-400",
+      link: "/project-manager/services?status=PENDING",
+    },
+  ]
+
+  const quickActions = [
+    {
+      title: "Add Client",
+      description: "Register a new client",
+      icon: Users,
+      href: "/project-manager/clients/new",
+      color: "bg-emerald-500 hover:bg-emerald-600",
+    },
+    {
+      title: "Add Team Member",
+      description: "Add a new team member",
+      icon: UserPlus,
+      href: "/project-manager/trainees/new",
+      color: "bg-purple-500 hover:bg-purple-600",
+    },
+    {
+      title: "New Service",
+      description: "Create a service request",
+      icon: Briefcase,
+      href: "/project-manager/services/new",
+      color: "bg-blue-500 hover:bg-blue-600",
+    },
+    {
+      title: "Upload Document",
+      description: "Upload a new document",
+      icon: FolderPlus,
+      href: "/project-manager/documents",
+      color: "bg-indigo-500 hover:bg-indigo-600",
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Overview of your clients and their services
-          </p>
-        </div>
-        <Button asChild className="bg-green-600 hover:bg-green-700">
-          <Link href="/project-manager/clients/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Client
-          </Link>
-        </Button>
-      </div>
-
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Clients */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <UserCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Total Clients
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isLoading ? "..." : dashboardData?.userCount || 0}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Your clients</p>
-          </CardContent>
-        </Card>
-
-        {/* Active Services */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Briefcase className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Active Services
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isLoading ? "..." : dashboardData?.activeServicesCount || 0}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">In progress</p>
-          </CardContent>
-        </Card>
-
-        {/* Pending Services */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                <Clock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Pending Services
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isLoading ? "..." : dashboardData?.pendingServicesCount || 0}
-            </div>
-            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-              Requires attention
+    <div className="space-y-8">
+      {/* Welcome Banner */}
+      <div className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 rounded-2xl p-8 text-white shadow-xl">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">
+              Welcome back, {session?.user?.name || "Project Manager"}! 👋
+            </h1>
+            <p className="text-emerald-100 text-lg">
+              Here's an overview of your clients and services
             </p>
-          </CardContent>
-        </Card>
-
-        {/* Pending Invoices */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                <CreditCard className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Pending Invoices
-              </span>
+          </div>
+          <div className="hidden md:block">
+            <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+              <TrendingUp className="h-5 w-5" />
+              <span className="font-medium">Project Manager Portal</span>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isLoading ? "..." : dashboardData?.pendingInvoicesCount || 0}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Awaiting payment</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Recent Users and Services */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat) => (
+          <Link key={stat.label} href={stat.link}>
+            <Card className="hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer border-0 shadow-md">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                      {stat.label}
+                    </p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                      {isLoading ? "..." : stat.value}
+                    </p>
+                  </div>
+                  <div className={`p-4 rounded-xl ${stat.bgColor}`}>
+                    <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-800 dark:to-slate-900 rounded-t-lg border-b border-gray-100 dark:border-slate-700">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Plus className="h-5 w-5 text-emerald-600" />
+            Quick Actions
+          </h2>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {quickActions.map((action) => (
+              <Link key={action.title} href={action.href}>
+                <div className={`${action.color} text-white rounded-xl p-5 hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}>
+                  <action.icon className="h-8 w-8 mb-3" />
+                  <h3 className="font-semibold text-lg">{action.title}</h3>
+                  <p className="text-white/80 text-sm mt-1">{action.description}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Data Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Users */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Recent Clients
-              </h2>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/project-manager/clients">View All</Link>
-              </Button>
-            </div>
+        {/* Recent Clients */}
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Recent Clients
+            </h2>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/project-manager/clients">
+                View All <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading clients...</div>
+              <div className="text-center py-8 text-gray-500">Loading...</div>
             ) : dashboardData?.recentUsers && dashboardData.recentUsers.length > 0 ? (
               <div className="space-y-3">
-                {dashboardData.recentUsers.map((user) => (
+                {dashboardData.recentUsers.slice(0, 5).map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white">{user.name}</p>
-                        <Badge
-                          className={
-                            user.isActive
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                          }
-                        >
-                          {user.isActive ? "Active" : "Inactive"}
-                        </Badge>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                          {user.name.charAt(0)}
+                        </span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        {user.servicesCount} service{user.servicesCount !== 1 ? "s" : ""}
-                      </p>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{user.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                      </div>
                     </div>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/ca/clients/${user.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        className={
+                          user.isActive
+                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                            : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                        }
+                      >
+                        {user.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/project-manager/clients/${user.id}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <UserCircle className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <Users className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
                 <p>No clients yet</p>
                 <Button asChild variant="outline" size="sm" className="mt-4">
                   <Link href="/project-manager/clients/new">Add Your First Client</Link>
@@ -264,26 +302,26 @@ export default function CADashboardPage() {
         </Card>
 
         {/* Recent Services */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Recent Services
-              </h2>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/project-manager/services">View All</Link>
-              </Button>
-            </div>
+        <Card className="border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Recent Services
+            </h2>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/project-manager/services">
+                View All <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-gray-500">Loading services...</div>
+              <div className="text-center py-8 text-gray-500">Loading...</div>
             ) : dashboardData?.recentServices && dashboardData.recentServices.length > 0 ? (
               <div className="space-y-3">
-                {dashboardData.recentServices.map((service) => (
+                {dashboardData.recentServices.slice(0, 5).map((service) => (
                   <div
                     key={service.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
@@ -294,17 +332,17 @@ export default function CADashboardPage() {
                           {formatStatus(service.status)}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {service.user.name}
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {service.user?.name || "Unknown Client"}
                       </p>
                       {service.dueDate && (
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        <p className="text-xs text-gray-400 mt-1">
                           Due: {formatDate(service.dueDate)}
                         </p>
                       )}
                     </div>
                     <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/ca/services/${service.id}`}>
+                      <Link href={`/project-manager/services/${service.id}`}>
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
@@ -312,72 +350,33 @@ export default function CADashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
                 <p>No services yet</p>
+                <Button asChild variant="outline" size="sm" className="mt-4">
+                  <Link href="/project-manager/services/new">Create First Service</Link>
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Client Documents Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Client Documents</h2>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/project-manager/client-documents">
-                <FolderOpen className="h-4 w-4 mr-2" />
-                View All
-              </Link>
-            </Button>
-          </div>
+      {/* Recent Activity Card */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Activity className="h-5 w-5 text-emerald-600" />
+            Recent Activity
+          </h2>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {isLoadingDocs ? (
-              <div className="text-center py-8 text-gray-500">Loading client documents...</div>
-            ) : clientDocuments && clientDocuments.length > 0 ? (
-              <div className="space-y-3">
-                {clientDocuments.slice(0, 5).map((client) => {
-                  const totalDocs = client.documentTypes.reduce((sum: number, dt: any) => sum + dt.count, 0)
-                  return (
-                    <div
-                      key={client.clientId}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Folder className="h-5 w-5 text-blue-500" />
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{client.clientName}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{client.clientEmail}</p>
-                        </div>
-                      </div>
-                      <Badge variant="secondary">{totalDocs} files</Badge>
-                    </div>
-                  )
-                })}
-                {clientDocuments.length > 5 && (
-                  <div className="text-center pt-2">
-                    <Button asChild variant="link" size="sm">
-                      <Link href="/project-manager/client-documents">
-                        View all {clientDocuments.length} clients
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-                <p>No client documents yet</p>
-              </div>
-            )}
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+            <p>Activity tracking coming soon</p>
           </div>
         </CardContent>
       </Card>
     </div>
   )
 }
-

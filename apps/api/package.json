@@ -4,7 +4,7 @@
   "description": "CA Firm Management System - API Backend",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/server.ts",
+    "dev": "nodemon -e ts --exec \"npx ts-node --transpile-only src/server.ts\"",
     "build": "tsc",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
@@ -11,10 +12,12 @@ import {
     Search,
     LogOut,
     User,
+    Settings,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import MobileSidebar from "@/components/layout/MobileSidebar"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -23,13 +26,14 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Shield } from "lucide-react"
+import { UserCircle } from "lucide-react"
 
 const navigationItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/team-member/dashboard" },
     { icon: Users, label: "My Clients", href: "/team-member/clients" },
     { icon: Briefcase, label: "Services", href: "/team-member/services" },
     { icon: FileText, label: "Documents", href: "/team-member/documents" },
+    { icon: Settings, label: "Settings", href: "/team-member/settings" },
 ]
 
 export default function TeamMemberLayout({
@@ -39,19 +43,19 @@ export default function TeamMemberLayout({
 }) {
     const pathname = usePathname()
     const { data: session } = useSession()
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     const handleLogout = async () => {
-        // Clear local storage first
         if (typeof window !== "undefined") {
             localStorage.removeItem("token")
             localStorage.removeItem("auth-storage")
             localStorage.clear()
         }
-
-        // Sign out with NextAuth
         await signOut({ redirect: false })
-
-        // Force redirect to login page
         window.location.href = "/login"
     }
 
@@ -71,12 +75,17 @@ export default function TeamMemberLayout({
             <aside className="hidden lg:flex w-[280px] bg-[#1e293b] dark:bg-slate-900 flex-col fixed left-0 top-0 h-full">
                 {/* Logo Section */}
                 <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-700 dark:border-slate-700">
-                    <div className="rounded-lg bg-green-600 p-2">
-                        <Shield className="h-5 w-5 text-white" />
+                    <div className="rounded-lg bg-teal-600 p-2">
+                        <UserCircle className="h-5 w-5 text-white" />
                     </div>
-                    <span className="text-white dark:text-white font-semibold text-lg">
-                        Team Member Portal
-                    </span>
+                    <div className="flex flex-col">
+                        <span className="text-white dark:text-white font-semibold text-lg">
+                            Team Member
+                        </span>
+                        <span className="text-slate-400 text-xs">
+                            Portal
+                        </span>
+                    </div>
                 </div>
 
                 {/* Navigation Menu */}
@@ -89,7 +98,7 @@ export default function TeamMemberLayout({
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors group ${isActive
-                                    ? "bg-green-600 text-white"
+                                    ? "bg-teal-600 text-white"
                                     : "text-slate-300 dark:text-slate-300 hover:bg-slate-700 dark:hover:bg-slate-700 hover:text-white"
                                     }`}
                             >
@@ -102,9 +111,8 @@ export default function TeamMemberLayout({
 
                 {/* User Profile Section */}
                 <div className="px-6 py-4 border-t border-slate-700 dark:border-slate-700 space-y-4">
-                    {/* User Info */}
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-slate-600 flex items-center justify-center">
+                        <div className="h-10 w-10 rounded-full bg-teal-600 flex items-center justify-center">
                             <span className="text-white text-sm font-semibold">
                                 {getUserInitials(session?.user?.name)}
                             </span>
@@ -114,7 +122,7 @@ export default function TeamMemberLayout({
                                 {session?.user?.name || "Team Member"}
                             </p>
                             <p className="text-slate-400 dark:text-slate-400 text-xs truncate">
-                                {session?.user?.email || "Team Member@firm.com"}
+                                {session?.user?.email}
                             </p>
                         </div>
                     </div>
@@ -136,8 +144,22 @@ export default function TeamMemberLayout({
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col ml-0 lg:ml-[280px] bg-gray-50 dark:bg-slate-800">
+                {/* Mobile Header - Mobile Only */}
+                <header className="flex lg:hidden bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 py-3 items-center justify-between">
+                    <MobileSidebar navigation={navigationItems} />
+                    <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-teal-600 p-1.5">
+                            <UserCircle className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="text-gray-900 dark:text-white font-semibold text-base">
+                            Team Member
+                        </span>
+                    </div>
+                    <ThemeToggle />
+                </header>
+
                 {/* Desktop Header - Desktop Only */}
-                <header className="flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
+                <header suppressHydrationWarning className="hidden lg:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
                     <div className="flex-1 max-w-md">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -150,33 +172,42 @@ export default function TeamMemberLayout({
                     </div>
                     <div className="flex items-center gap-4">
                         <ThemeToggle />
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="flex items-center gap-2">
-                                    <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center">
-                                        <span className="text-white text-xs font-semibold">
-                                            {getUserInitials(session?.user?.name)}
-                                        </span>
-                                    </div>
-                                    <div className="hidden md:block text-left">
-                                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                            {session?.user?.name || "Team Member"}
-                                        </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            Team Member
-                                        </p>
-                                    </div>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                                    <LogOut className="h-4 w-4 mr-2" />
-                                    Logout
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        {mounted && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-full bg-teal-600 flex items-center justify-center">
+                                            <span className="text-white text-xs font-semibold">
+                                                {getUserInitials(session?.user?.name)}
+                                            </span>
+                                        </div>
+                                        <div className="hidden md:block text-left">
+                                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                                {session?.user?.name || "Team Member"}
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                TEAM_MEMBER
+                                            </p>
+                                        </div>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem asChild>
+                                        <Link href="/team-member/settings" className="cursor-pointer">
+                                            <User className="h-4 w-4 mr-2" />
+                                            Profile
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={handleLogout} variant="destructive">
+                                        <LogOut className="h-4 w-4 mr-2" />
+                                        Logout
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </div>
                 </header>
 

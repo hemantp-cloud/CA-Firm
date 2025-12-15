@@ -45,7 +45,7 @@ export default function NewUserPage() {
       const response = await api.post("/project-manager/clients", data)
 
       if (response.data.success) {
-        router.push(`/ca/clients/${response.data.data.id}`)
+        router.push(`/project-manager/clients/${response.data.data.id}`)
       } else {
         setError(response.data.message || "Failed to create user")
       }
