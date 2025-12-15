@@ -68,15 +68,14 @@ export function calculateInvoiceTotals(items: Array<{
 
 /**
  * Get all invoices with role-based filtering
+ * Updated for new schema - uses clientId instead of userId
  */
 export async function getAllInvoices(userContext: {
   id: string;
   role: string;
   firmId: string;
-  clientId: string | null;
 }, filters: {
   status?: InvoiceStatus;
-  userId?: string;
   clientId?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -86,19 +85,33 @@ export async function getAllInvoices(userContext: {
   };
 
   // Role-based filtering
-  if (userContext.role === 'CA') {
-    where.clientId = userContext.clientId;
+  if (userContext.role === 'PROJECT_MANAGER') {
+    // PM can see invoices for clients they manage
+    const managedClients = await prisma.client.findMany({
+      where: {
+        firmId: userContext.firmId,
+        managedBy: userContext.id,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    where.clientId = { in: managedClients.map((c) => c.id) };
   } else if (userContext.role === 'CLIENT') {
-    where.userId = userContext.id;
+    // Client can only see their own invoices
+    where.clientId = userContext.id;
+  } else if (userContext.role === 'TEAM_MEMBER') {
+    // Team member can see invoices of assigned clients
+    const assignments = await prisma.clientAssignment.findMany({
+      where: { teamMemberId: userContext.id },
+      select: { clientId: true },
+    });
+    where.clientId = { in: assignments.map((a) => a.clientId) };
   }
+  // ADMIN and SUPER_ADMIN can see all
 
   // Apply filters
   if (filters.status) {
     where.status = filters.status;
-  }
-
-  if (filters.userId) {
-    where.userId = filters.userId;
   }
 
   if (filters.clientId) {
@@ -115,20 +128,14 @@ export async function getAllInvoices(userContext: {
     }
   }
 
-  return await (prisma as any).invoice.findMany({
+  return await prisma.invoice.findMany({
     where,
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       client: {
         select: {
           id: true,
           name: true,
+          email: true,
         },
       },
       service: {
@@ -174,7 +181,6 @@ export async function getInvoiceById(
     id: string;
     role: string;
     firmId: string;
-    clientId: string | null;
   }
 ) {
   const where: any = {
@@ -183,26 +189,34 @@ export async function getInvoiceById(
   };
 
   // Role-based filtering
-  if (userContext.role === 'CA') {
-    where.clientId = userContext.clientId;
+  if (userContext.role === 'PROJECT_MANAGER') {
+    const managedClients = await prisma.client.findMany({
+      where: {
+        firmId: userContext.firmId,
+        managedBy: userContext.id,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    where.clientId = { in: managedClients.map((c) => c.id) };
   } else if (userContext.role === 'CLIENT') {
-    where.userId = userContext.id;
+    where.clientId = userContext.id;
+  } else if (userContext.role === 'TEAM_MEMBER') {
+    const assignments = await prisma.clientAssignment.findMany({
+      where: { teamMemberId: userContext.id },
+      select: { clientId: true },
+    });
+    where.clientId = { in: assignments.map((a) => a.clientId) };
   }
 
   const invoice = await prisma.invoice.findFirst({
     where,
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       client: {
         select: {
           id: true,
           name: true,
+          email: true,
         },
       },
       service: {
@@ -222,7 +236,7 @@ export async function getInvoiceById(
         },
       },
     },
-  } as any);
+  });
 
   if (!invoice) {
     throw new Error('Invoice not found');
@@ -232,13 +246,14 @@ export async function getInvoiceById(
 }
 
 /**
- * Create invoice (ADMIN only)
+ * Create invoice (ADMIN/PM only)
  */
 export async function createInvoice(
   firmId: string,
+  _creatorId: string,
+  _creatorRole: string,
   invoiceData: {
-    userId: string;
-    clientId?: string;
+    clientId: string;
     serviceId?: string;
     invoiceDate: string;
     dueDate: string;
@@ -252,6 +267,19 @@ export async function createInvoice(
     notes?: string;
   }
 ) {
+  // Verify client exists
+  const client = await prisma.client.findFirst({
+    where: {
+      id: invoiceData.clientId,
+      firmId,
+      deletedAt: null,
+    },
+  });
+
+  if (!client) {
+    throw new Error('Client not found');
+  }
+
   // Generate invoice number
   const invoiceNumber = await generateInvoiceNumber(firmId);
 
@@ -264,8 +292,7 @@ export async function createInvoice(
     const newInvoice = await tx.invoice.create({
       data: {
         firmId,
-        userId: invoiceData.userId,
-        clientId: invoiceData.clientId || null,
+        clientId: invoiceData.clientId,
         serviceId: invoiceData.serviceId || null,
         invoiceNumber,
         invoiceDate: new Date(invoiceData.invoiceDate),
@@ -277,13 +304,13 @@ export async function createInvoice(
         totalAmount: totals.totalAmount,
         status: 'DRAFT' as InvoiceStatus,
         notes: invoiceData.notes || null,
-      } as any,
+      },
     });
 
     // Create invoice items
     const items = await Promise.all(
       invoiceData.items.map((item) =>
-        (tx as any).invoiceItem.create({
+        tx.invoiceItem.create({
           data: {
             invoiceId: newInvoice.id,
             description: item.description,
@@ -303,7 +330,7 @@ export async function createInvoice(
 }
 
 /**
- * Update invoice (ADMIN only)
+ * Update invoice (ADMIN/PM only)
  */
 export async function updateInvoice(
   id: string,
@@ -329,19 +356,18 @@ export async function updateInvoice(
     include: {
       items: true,
     },
-  } as any);
+  });
 
   if (!invoice) {
     throw new Error('Invoice not found');
   }
 
   // If items are provided, recalculate totals
-  const invoiceWithTaxRate = invoice as any;
   let totals = {
-    subtotal: Number(invoiceWithTaxRate.subtotal),
-    taxRate: Number(invoiceWithTaxRate.taxRate || 18),
-    taxAmount: Number(invoiceWithTaxRate.taxAmount),
-    totalAmount: Number(invoiceWithTaxRate.totalAmount),
+    subtotal: Number(invoice.subtotal),
+    taxRate: Number(invoice.taxRate || 18),
+    taxAmount: Number(invoice.taxAmount),
+    totalAmount: Number(invoice.totalAmount),
   };
 
   if (invoiceData.items) {
@@ -351,30 +377,41 @@ export async function updateInvoice(
   // Update invoice and items in a transaction
   const updated = await prisma.$transaction(async (tx) => {
     // Update invoice
+    const updateData: any = {
+      subtotal: totals.subtotal,
+      taxAmount: totals.taxAmount,
+      totalAmount: totals.totalAmount,
+    };
+
+    if (invoiceData.invoiceDate) {
+      updateData.invoiceDate = new Date(invoiceData.invoiceDate);
+    }
+    if (invoiceData.dueDate) {
+      updateData.dueDate = new Date(invoiceData.dueDate);
+    }
+    if (invoiceData.discount !== undefined) {
+      updateData.discount = invoiceData.discount;
+    }
+    if (invoiceData.notes !== undefined) {
+      updateData.notes = invoiceData.notes;
+    }
+
     const updatedInvoice = await tx.invoice.update({
       where: { id },
-      data: {
-        invoiceDate: invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate) : undefined,
-        dueDate: invoiceData.dueDate ? new Date(invoiceData.dueDate) : undefined,
-        subtotal: totals.subtotal,
-        taxAmount: totals.taxAmount,
-        discount: invoiceData.discount !== undefined ? invoiceData.discount : undefined,
-        totalAmount: totals.totalAmount,
-        notes: invoiceData.notes !== undefined ? invoiceData.notes : undefined,
-      } as any,
+      data: updateData,
     });
 
     // Update items if provided
     if (invoiceData.items) {
       // Delete existing items
-      await (tx as any).invoiceItem.deleteMany({
+      await tx.invoiceItem.deleteMany({
         where: { invoiceId: id },
       });
 
       // Create new items
       await Promise.all(
         invoiceData.items.map((item) =>
-          (tx as any).invoiceItem.create({
+          tx.invoiceItem.create({
             data: {
               invoiceId: id,
               description: item.description,
@@ -398,13 +435,13 @@ export async function updateInvoice(
  * Mark invoice as sent
  */
 export async function markInvoiceAsSent(id: string, firmId: string) {
-  const invoice = await (prisma as any).invoice.findFirst({
+  const invoice = await prisma.invoice.findFirst({
     where: {
       id,
       firmId,
     },
     include: {
-      user: {
+      client: {
         select: {
           email: true,
           name: true,
@@ -425,8 +462,8 @@ export async function markInvoiceAsSent(id: string, firmId: string) {
     },
   });
 
-  // TODO: Send email notification
-  // await sendInvoiceEmail(invoice.user.email, invoice.invoiceNumber, ...);
+  // TODO: Send email notification to client
+  // await sendInvoiceEmail(invoice.client.email, invoice.invoiceNumber, ...);
 
   return updated;
 }
@@ -435,7 +472,7 @@ export async function markInvoiceAsSent(id: string, firmId: string) {
  * Get invoice PDF data for generation
  */
 export async function getInvoicePDFData(id: string, firmId: string) {
-  const invoice = await (prisma as any).invoice.findFirst({
+  const invoice = await prisma.invoice.findFirst({
     where: {
       id,
       firmId,
@@ -449,15 +486,10 @@ export async function getInvoicePDFData(id: string, firmId: string) {
           pan: true,
         },
       },
-      user: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
       client: {
         select: {
           name: true,
+          email: true,
           address: true,
           gstin: true,
           pan: true,
@@ -475,29 +507,74 @@ export async function getInvoicePDFData(id: string, firmId: string) {
     throw new Error('Invoice not found');
   }
 
-  // Type assertion for invoice with relations
-  const invoiceWithRelations = invoice as any;
-
   return {
-    invoiceNumber: invoiceWithRelations.invoiceNumber,
-    invoiceDate: invoiceWithRelations.invoiceDate.toLocaleDateString('en-IN'),
-    dueDate: invoiceWithRelations.dueDate.toLocaleDateString('en-IN'),
-    firmName: invoiceWithRelations.firm?.name || '',
-    firmAddress: invoiceWithRelations.firm?.address || '',
-    firmGSTIN: invoiceWithRelations.firm?.gstin || undefined,
-    clientName: invoiceWithRelations.user?.name || '',
-    clientAddress: invoiceWithRelations.client?.address || '', // Use client address if available, User doesn't have address
-    clientGSTIN: invoiceWithRelations.client?.gstin || undefined,
-    clientPAN: invoiceWithRelations.client?.pan || undefined,
-    items: (invoiceWithRelations.items || []).map((item: any) => ({
+    invoiceNumber: invoice.invoiceNumber,
+    invoiceDate: invoice.invoiceDate.toLocaleDateString('en-IN'),
+    dueDate: invoice.dueDate.toLocaleDateString('en-IN'),
+    firmName: invoice.firm?.name || '',
+    firmAddress: invoice.firm?.address || '',
+    firmGSTIN: invoice.firm?.gstin || undefined,
+    clientName: invoice.client?.name || '',
+    clientEmail: invoice.client?.email || '',
+    clientAddress: invoice.client?.address || '',
+    clientGSTIN: invoice.client?.gstin || undefined,
+    clientPAN: invoice.client?.pan || undefined,
+    items: (invoice.items || []).map((item: any) => ({
       description: item.description,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
       sacCode: '998314', // Standard SAC code
       amount: Number(item.amount),
     })),
-    subtotal: Number(invoiceWithRelations.subtotal),
-    taxAmount: Number(invoiceWithRelations.taxAmount),
-    totalAmount: Number(invoiceWithRelations.totalAmount),
-    paymentTerms: invoiceWithRelations.notes || 'Payment due within 30 days of invoice date.',
+    subtotal: Number(invoice.subtotal),
+    taxRate: Number(invoice.taxRate),
+    taxAmount: Number(invoice.taxAmount),
+    discount: Number(invoice.discount || 0),
+    totalAmount: Number(invoice.totalAmount),
+    paymentTerms: invoice.notes || 'Payment due within 30 days of invoice date.',
   };
 }
 
+/**
+ * Get invoice statistics
+ */
+export async function getInvoiceStats(firmId: string, userContext?: { id: string; role: string }) {
+  const where: any = { firmId };
+
+  // Apply role filtering
+  if (userContext) {
+    if (userContext.role === 'PROJECT_MANAGER') {
+      const managedClients = await prisma.client.findMany({
+        where: { firmId, managedBy: userContext.id, deletedAt: null },
+        select: { id: true },
+      });
+      where.clientId = { in: managedClients.map((c) => c.id) };
+    } else if (userContext.role === 'CLIENT') {
+      where.clientId = userContext.id;
+    }
+  }
+
+  const [draft, sent, paid, overdue, cancelled] = await Promise.all([
+    prisma.invoice.count({ where: { ...where, status: 'DRAFT' } }),
+    prisma.invoice.count({ where: { ...where, status: 'SENT' } }),
+    prisma.invoice.count({ where: { ...where, status: 'PAID' } }),
+    prisma.invoice.count({ where: { ...where, status: 'OVERDUE' } }),
+    prisma.invoice.count({ where: { ...where, status: 'CANCELLED' } }),
+  ]);
+
+  // Calculate total amount pending
+  const pendingInvoices = await prisma.invoice.aggregate({
+    where: { ...where, status: { in: ['SENT', 'OVERDUE'] } },
+    _sum: { totalAmount: true },
+  });
+
+  return {
+    draft,
+    sent,
+    paid,
+    overdue,
+    cancelled,
+    total: draft + sent + paid + overdue,
+    pendingAmount: Number(pendingInvoices._sum.totalAmount || 0),
+  };
+}

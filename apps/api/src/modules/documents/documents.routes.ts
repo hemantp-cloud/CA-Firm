@@ -5,7 +5,7 @@ import {
   getDocumentById,
   uploadDocument,
   downloadDocument,
-  deleteDocument,
+  hideDocument,
 } from './documents.service';
 import { authenticate, AuthenticatedRequest } from '../../shared/middleware/auth.middleware';
 import { z } from 'zod';
@@ -282,7 +282,7 @@ router.put('/:id/status', async (req: AuthenticatedRequest, res: Response): Prom
 
 /**
  * DELETE /api/documents/:id
- * Delete document
+ * Hide document from current user's portal
  */
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -294,17 +294,17 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response): Promise<
       return;
     }
     const userContext = getUserContext(req);
-    await deleteDocument(req.params.id, userContext);
+    await hideDocument(req.params.id, userContext);
 
     res.status(200).json({
       success: true,
-      message: 'Document deleted successfully',
+      message: 'Document hidden from your portal',
     });
   } catch (error) {
-    console.error('Delete document error:', error);
+    console.error('Hide document error:', error);
     res.status(404).json({
       success: false,
-      message: error instanceof Error ? error.message : 'Failed to delete document',
+      message: error instanceof Error ? error.message : 'Failed to hide document',
     });
   }
 });

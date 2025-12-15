@@ -32,6 +32,16 @@ const getFirmId = (req: any): string => {
   return req.user?.firmId || '';
 };
 
+// Helper to get userId from authenticated user
+const getUserId = (req: any): string => {
+  return req.user?.userId || req.user?.id || '';
+};
+
+// Helper to get userRole from authenticated user
+const getUserRole = (req: any): string => {
+  return req.user?.role || '';
+};
+
 /**
  * GET /api/admin/dashboard
  * Get dashboard statistics
@@ -314,7 +324,9 @@ router.post('/users', async (req: Request, res: Response): Promise<void> => {
     }
 
     const firmId = getFirmId(req);
-    const user = await createUser(firmId, validationResult.data);
+    const creatorId = getUserId(req);
+    const creatorRole = getUserRole(req);
+    const user = await createUser(firmId, creatorId, creatorRole, validationResult.data);
 
     res.status(201).json({
       success: true,
@@ -354,7 +366,15 @@ router.get('/users/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
     const firmId = getFirmId(req);
-    const user = await getUserById(req.params.id, firmId);
+    const role = req.query.role as string || req.body.role;
+    if (!role) {
+      res.status(400).json({
+        success: false,
+        message: 'Role is required to fetch user details',
+      });
+      return;
+    }
+    const user = await getUserById(req.params.id, firmId, role);
 
     res.status(200).json({
       success: true,
@@ -394,7 +414,15 @@ router.put('/users/:id', async (req: Request, res: Response): Promise<void> => {
     }
 
     const firmId = getFirmId(req);
-    const user = await updateUser(req.params.id, firmId, validationResult.data);
+    const role = req.body.role;
+    if (!role) {
+      res.status(400).json({
+        success: false,
+        message: 'Role is required to update user',
+      });
+      return;
+    }
+    const user = await updateUser(req.params.id, firmId, role, validationResult.data);
 
     res.status(200).json({
       success: true,
@@ -424,7 +452,16 @@ router.delete('/users/:id', async (req: Request, res: Response): Promise<void> =
       return;
     }
     const firmId = getFirmId(req);
-    await deleteUser(req.params.id, firmId);
+    const deletedBy = getUserId(req);
+    const role = req.query.role as string || req.body.role;
+    if (!role) {
+      res.status(400).json({
+        success: false,
+        message: 'Role is required to delete user',
+      });
+      return;
+    }
+    await deleteUser(req.params.id, firmId, role, deletedBy);
 
     res.status(200).json({
       success: true,
@@ -492,7 +529,11 @@ clientRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     }
 
     const firmId = getFirmId(req);
-    const user = await createUser(firmId, validationResult.data);
+    const creatorId = getUserId(req);
+    const creatorRole = getUserRole(req);
+    // clientRouter handles CLIENT role users
+    const userData = { ...validationResult.data, role: 'CLIENT' };
+    const user = await createUser(firmId, creatorId, creatorRole, userData);
 
     res.status(201).json({
       success: true,
@@ -527,7 +568,8 @@ clientRouter.get('/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
     const firmId = getFirmId(req);
-    const user = await getUserById(req.params.id, firmId);
+    // clientRouter handles CLIENT role users
+    const user = await getUserById(req.params.id, firmId, 'CLIENT');
 
     res.status(200).json({
       success: true,
@@ -563,7 +605,8 @@ clientRouter.put('/:id', async (req: Request, res: Response): Promise<void> => {
     }
 
     const firmId = getFirmId(req);
-    const user = await updateUser(req.params.id, firmId, validationResult.data);
+    // clientRouter handles CLIENT role users
+    const user = await updateUser(req.params.id, firmId, 'CLIENT', validationResult.data);
 
     res.status(200).json({
       success: true,
@@ -589,7 +632,9 @@ clientRouter.delete('/:id', async (req: Request, res: Response): Promise<void> =
       return;
     }
     const firmId = getFirmId(req);
-    await deleteUser(req.params.id, firmId);
+    const deletedBy = getUserId(req);
+    // clientRouter handles CLIENT role users
+    await deleteUser(req.params.id, firmId, 'CLIENT', deletedBy);
 
     res.status(200).json({
       success: true,

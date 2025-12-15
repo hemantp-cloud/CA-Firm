@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seed...\n');
+  console.log('🌱 Starting database seed with NEW SCHEMA...\n');
 
   // 1. Create or Update CA Firm (single tenant)
   console.log('📋 Checking CA Firm...');
@@ -22,81 +22,41 @@ async function main() {
   });
   console.log(`✅ Firm ready: ${firm.name} (ID: ${firm.id})\n`);
 
-  // 2. Create or Update Admin user
-  console.log('👤 Creating/Updating Admin user...');
-  const hashedAdminPassword = await bcrypt.hash('Pandey3466@', 10);
+  // 2. Create Super Admin (Main Admin - Owner)
+  console.log('👑 Creating Super Admin (Main Admin)...');
+  const hashedSuperAdminPassword = await bcrypt.hash('pandey3466@', 10);
 
-  const adminUser = await prisma.user.upsert({
+  const superAdmin = await prisma.superAdmin.upsert({
     where: {
-      firmId_email: {
-        firmId: firm.id,
-        email: 'hemant.p@10x.in',
-      },
-    },
-    update: {
-      password: hashedAdminPassword,
-      role: 'ADMIN',
-      isActive: true,
-      firmId: firm.id,
-    },
-    create: {
-      firmId: firm.id,
-      clientId: null,
       email: 'hemant.p@10x.in',
-      password: hashedAdminPassword,
-      name: 'CA Admin',
-      role: 'ADMIN',
-      twoFactorEnabled: true,
-      mustChangePassword: false,
-      emailVerified: true,
-      isActive: true,
-    },
-  });
-  console.log(`✅ Admin user ready: ${adminUser.email}\n`);
-
-  // 3. Create a test CLIENT user for testing the Client Portal
-  console.log('👥 Creating/Updating test Client user...');
-  const hashedClientPassword = await bcrypt.hash('Client123@', 10);
-
-  const clientUser = await prisma.user.upsert({
-    where: {
-      firmId_email: {
-        firmId: firm.id,
-        email: 'client@test.com',
-      },
     },
     update: {
-      password: hashedClientPassword,
-      role: 'CLIENT',
+      password: hashedSuperAdminPassword,
       isActive: true,
+      firmId: firm.id,
     },
     create: {
       firmId: firm.id,
-      clientId: null,
-      email: 'client@test.com',
-      password: hashedClientPassword,
-      name: 'Test Client',
-      role: 'CLIENT',
+      email: 'hemant.p@10x.in',
+      password: hashedSuperAdminPassword,
+      name: 'Hemant Pandey',
       twoFactorEnabled: false,
       mustChangePassword: false,
       emailVerified: true,
       isActive: true,
     },
   });
-  console.log(`✅ Client user ready: ${clientUser.email}\n`);
+  console.log(`✅ Super Admin created: ${superAdmin.email}\n`);
 
   console.log('🎉 Database seed completed successfully!');
   console.log('\n📊 Summary:');
   console.log(`   - Firm: ${firm.name}`);
-  console.log(`   - Admin User: ${adminUser.email}`);
-  console.log(`   - Client User: ${clientUser.email}`);
+  console.log(`   - Super Admin: ${superAdmin.email}`);
   console.log('\n🔐 Login Credentials:');
-  console.log('\n   ADMIN:');
+  console.log('\n   SUPER ADMIN (Main Admin):');
   console.log(`   Email: hemant.p@10x.in`);
-  console.log(`   Password: Pandey3466@`);
-  console.log('\n   CLIENT (for testing upload):');
-  console.log(`   Email: client@test.com`);
-  console.log(`   Password: Client123@`);
+  console.log(`   Password: pandey3466@`);
+  console.log('\n✨ You can now create other users (Admins, Project Managers, Team Members, Clients) from the Super Admin dashboard!');
 }
 
 main()

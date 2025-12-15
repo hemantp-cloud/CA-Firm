@@ -34,7 +34,8 @@ import { Shield } from "lucide-react"
 
 const navigationItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
-  { icon: Users, label: "CAs", href: "/admin/ca" },
+  { icon: Users, label: "Project Managers", href: "/admin/project-managers" },
+  { icon: User, label: "Team Members", href: "/admin/team-members" },
   { icon: UserCircle, label: "Clients", href: "/admin/client" },
   { icon: Briefcase, label: "Services", href: "/admin/services" },
   { icon: FileText, label: "Documents", href: "/admin/documents" },
@@ -163,7 +164,7 @@ export default function AdminLayout({
         </header>
 
         {/* Desktop Header - Desktop Only */}
-        <header className="hidden lg:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
+        <header suppressHydrationWarning className="hidden lg:flex bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-6 py-4 items-center justify-between">
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

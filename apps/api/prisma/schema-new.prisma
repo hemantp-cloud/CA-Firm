@@ -1,0 +1,656 @@
+// ============================================
+// CA FIRM MANAGEMENT SYSTEM - NEW SCHEMA
+// ============================================
+// Version: 2.0
+// Date: December 5, 2025
+// Design: Separate tables for each role (Future-proof)
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum ServiceStatus {
+  PENDING
+  IN_PROGRESS
+  UNDER_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceType {
+  ITR_FILING
+  GST_REGISTRATION
+  GST_RETURN
+  TDS_RETURN
+  TDS_COMPLIANCE
+  ROC_FILING
+  AUDIT
+  BOOK_KEEPING
+  PAYROLL
+  CONSULTATION
+  OTHER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum DocumentType {
+  PAN_CARD
+  AADHAR_CARD
+  BANK_STATEMENT
+  FORM_16
+  FORM_26AS
+  GST_CERTIFICATE
+  INCORPORATION_CERTIFICATE
+  PARTNERSHIP_DEED
+  MOA_AOA
+  AUDIT_REPORT
+  BALANCE_SHEET
+  PROFIT_LOSS
+  TAX_RETURN
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  IN_PROGRESS
+  REVIEWING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum PaymentMethod {
+  CASH
+  CHEQUE
+  UPI
+  NEFT
+  RTGS
+  CARD
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ============================================
+// CORE MODELS
+// ============================================
+
+// Firm (Organization)
+model Firm {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  address   String?
+  gstin     String?
+  pan       String?
+  website   String?
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  superAdmins  SuperAdmin[]
+  admins       Admin[]
+  cas          CA[]
+  trainees     Trainee[]
+  clients      Client[]
+  services     Service[]
+  documents    Document[]
+  invoices     Invoice[]
+  activityLogs ActivityLog[]
+  settings     Setting[]
+
+  @@index([email])
+  @@map("firms")
+}
+
+// ============================================
+// USER ROLE MODELS (Separate Tables)
+// ============================================
+
+// Super Admin (Firm Owner - Cannot be deleted)
+model SuperAdmin {
+  id          String    @id @default(uuid())
+  firmId      String
+  email       String    @unique
+  password    String
+  name        String
+  phone       String?
+  avatar      String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Email verification
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+
+  // Password management
+  mustChangePassword  Boolean   @default(false)
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+
+  // 2FA Support
+  twoFactorEnabled Boolean   @default(false)
+  otpCode          String?
+  otpExpiry        DateTime?
+
+  // Account security
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  // Relations
+  firm          Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  createdAdmins Admin[]       @relation("CreatedBySuper")
+  activityLogs  ActivityLog[] @relation("SuperAdminLogs")
+
+  @@unique([firmId, email])
+  @@index([firmId])
+  @@index([email])
+  @@map("super_admins")
+}
+
+// Regular Admin (Can be added/removed by Super Admin)
+model Admin {
+  id          String    @id @default(uuid())
+  firmId      String
+  createdBy   String // Super Admin who created this admin
+  email       String    @unique
+  password    String
+  name        String
+  phone       String?
+  avatar      String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Granular Permissions (Optional)
+  canManageCAs      Boolean @default(true)
+  canManageTrainees Boolean @default(true)
+  canManageClients  Boolean @default(true)
+  canManageAdmins   Boolean @default(false) // Only Super Admin
+  canViewReports    Boolean @default(true)
+  canManageSettings Boolean @default(false)
+
+  // Email verification
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+
+  // Password management
+  mustChangePassword  Boolean   @default(false)
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+
+  // 2FA Support
+  twoFactorEnabled Boolean   @default(false)
+  otpCode          String?
+  otpExpiry        DateTime?
+
+  // Account security
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  // Relations
+  firm         Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  creator      SuperAdmin    @relation("CreatedBySuper", fields: [createdBy], references: [id], onDelete: Restrict)
+  activityLogs ActivityLog[] @relation("AdminLogs")
+
+  @@unique([firmId, email])
+  @@index([firmId])
+  @@index([email])
+  @@index([createdBy])
+  @@map("admins")
+}
+
+// CA (Chartered Accountant)
+model CA {
+  id          String    @id @default(uuid())
+  firmId      String
+  email       String    @unique
+  password    String
+  name        String
+  phone       String?
+  pan         String?
+  address     String?
+  city        String?
+  state       String?
+  pincode     String?
+  avatar      String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Business details
+  gstin      String?
+  commission Decimal? @db.Decimal(5, 2) // Commission percentage
+
+  // Email verification
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+
+  // Password management
+  mustChangePassword  Boolean   @default(false)
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+
+  // 2FA Support
+  twoFactorEnabled Boolean   @default(false)
+  otpCode          String?
+  otpExpiry        DateTime?
+
+  // Account security
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  // Relations
+  firm         Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  clients      Client[]      @relation("CAManagesClients")
+  services     Service[]     @relation("CAServices")
+  activityLogs ActivityLog[] @relation("CALogs")
+
+  @@unique([firmId, email])
+  @@index([firmId])
+  @@index([email])
+  @@map("cas")
+}
+
+// Trainee (Junior Staff/Intern)
+model Trainee {
+  id          String    @id @default(uuid())
+  firmId      String
+  email       String    @unique
+  password    String
+  name        String
+  phone       String?
+  address     String?
+  avatar      String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Trainee specific
+  joiningDate DateTime @default(now())
+  mentorCAId  String? // Optional: Assigned mentor CA
+
+  // Email verification
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+
+  // Password management
+  mustChangePassword  Boolean   @default(false)
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+
+  // 2FA Support
+  twoFactorEnabled Boolean   @default(false)
+  otpCode          String?
+  otpExpiry        DateTime?
+
+  // Account security
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  // Relations
+  firm              Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  tasks             Task[]
+  documents         Document[]        @relation("TraineeDocuments")
+  assignedDocuments Document[]        @relation("AssignedToTrainee")
+  clientAssignments ClientAssignment[] @relation("TraineeAssignments")
+  activityLogs      ActivityLog[]     @relation("TraineeLogs")
+
+  @@unique([firmId, email])
+  @@index([firmId])
+  @@index([email])
+  @@map("trainees")
+}
+
+// Client (End Customer)
+model Client {
+  id          String    @id @default(uuid())
+  firmId      String
+  managedBy   String // CA who manages this client
+  email       String    @unique
+  password    String
+  name        String
+  phone       String?
+  pan         String?
+  aadhar      String?
+  address     String?
+  city        String?
+  state       String?
+  pincode     String?
+  avatar      String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Business details (if company)
+  gstin       String?
+  companyName String?
+
+  // Email verification
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+
+  // Password management
+  mustChangePassword  Boolean   @default(false)
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+
+  // 2FA Support
+  twoFactorEnabled Boolean   @default(false)
+  otpCode          String?
+  otpExpiry        DateTime?
+
+  // Account security
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  // Relations
+  firm              Firm              @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  ca                CA                @relation("CAManagesClients", fields: [managedBy], references: [id], onDelete: Restrict)
+  services          Service[]
+  documents         Document[]        @relation("ClientDocuments")
+  invoices          Invoice[]
+  clientAssignments ClientAssignment[] @relation("ClientAssignments")
+  activityLogs      ActivityLog[]     @relation("ClientLogs")
+
+  @@unique([firmId, email])
+  @@index([firmId])
+  @@index([managedBy])
+  @@index([email])
+  @@map("clients")
+}
+
+// ============================================
+// BUSINESS MODELS
+// ============================================
+
+// Service
+model Service {
+  id          String        @id @default(uuid())
+  firmId      String
+  clientId    String // Client who requested this service
+  caId        String? // CA managing this service
+  title       String
+  description String?
+  type        ServiceType
+  status      ServiceStatus @default(PENDING)
+  dueDate     DateTime?
+  completedAt DateTime?
+  feeAmount   Decimal?      @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  firm      Firm       @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  ca        CA?        @relation("CAServices", fields: [caId], references: [id], onDelete: SetNull)
+  tasks     Task[]
+  documents Document[]
+  invoices  Invoice[]
+
+  @@index([firmId])
+  @@index([clientId])
+  @@index([caId])
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+  @@map("services")
+}
+
+// Task
+model Task {
+  id           String        @id @default(uuid())
+  serviceId    String
+  assignedToId String? // Trainee assigned to this task
+  title        String
+  description  String?
+  status       ServiceStatus @default(PENDING)
+  priority     Int           @default(0) // 0=Low, 1=Medium, 2=High
+  dueDate      DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relations
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  assignedTo Trainee? @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([serviceId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// Document
+model Document {
+  id           String         @id @default(uuid())
+  firmId       String
+  clientId     String // Document belongs to Client
+  traineeId    String? // Trainee who uploaded (if applicable)
+  serviceId    String? // Optional: linked to a service
+  fileName     String
+  fileType     String // MIME type
+  fileSize     BigInt // Size in bytes
+  storagePath  String // Path to file in storage
+  folderPath   String? // Organized folder path
+  documentType DocumentType?
+  description  String?
+  version      Int            @default(1)
+  status       DocumentStatus @default(PENDING)
+  uploadStatus String         @default("DRAFT") // "DRAFT" or "SUBMITTED"
+  submittedAt  DateTime?
+  assignedTo   String? // Admin/CA/Trainee who picked this work
+  approvedAt   DateTime?
+  uploadedAt   DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Hide/Restore functionality
+  hiddenFrom String[]  @default([])
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
+  deletedBy  String?
+
+  // Relations
+  firm           Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client         Client        @relation("ClientDocuments", fields: [clientId], references: [id], onDelete: Cascade)
+  trainee        Trainee?      @relation("TraineeDocuments", fields: [traineeId], references: [id], onDelete: SetNull)
+  service        Service?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  assignedToUser Trainee?      @relation("AssignedToTrainee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  activityLogs   ActivityLog[]
+
+  @@index([firmId])
+  @@index([clientId])
+  @@index([traineeId])
+  @@index([serviceId])
+  @@index([documentType])
+  @@index([uploadStatus])
+  @@index([assignedTo])
+  @@map("documents")
+}
+
+// Invoice
+model Invoice {
+  id            String        @id @default(uuid())
+  firmId        String
+  clientId      String // Invoice for Client
+  serviceId     String? // Optional: linked to a service
+  invoiceNumber String        @unique
+  invoiceDate   DateTime
+  dueDate       DateTime
+  subtotal      Decimal       @db.Decimal(10, 2)
+  taxRate       Decimal       @default(18.00) @db.Decimal(5, 2)
+  taxAmount     Decimal       @db.Decimal(10, 2)
+  discount      Decimal       @default(0.00) @db.Decimal(10, 2)
+  totalAmount   Decimal       @db.Decimal(10, 2)
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  firm     Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  client   Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  service  Service?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([firmId])
+  @@index([clientId])
+  @@index([invoiceNumber])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+// Invoice Item
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Decimal  @default(1.00) @db.Decimal(10, 2)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  taxRate     Decimal  @default(18.00) @db.Decimal(5, 2)
+  amount      Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+// Payment
+model Payment {
+  id             String        @id @default(uuid())
+  invoiceId      String
+  amount         Decimal       @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod
+  paymentStatus  PaymentStatus @default(PENDING)
+  paymentDate    DateTime
+  transactionRef String?
+  bankName       String?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([paymentStatus])
+  @@index([paymentDate])
+  @@map("payments")
+}
+
+// Client Assignment (Trainee-Client relationship)
+model ClientAssignment {
+  id         String   @id @default(uuid())
+  traineeId  String
+  clientId   String
+  assignedBy String // Admin/SuperAdmin who made the assignment
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  trainee Trainee @relation("TraineeAssignments", fields: [traineeId], references: [id], onDelete: Cascade)
+  client  Client  @relation("ClientAssignments", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([traineeId, clientId])
+  @@index([traineeId])
+  @@index([clientId])
+  @@index([assignedBy])
+  @@map("client_assignments")
+}
+
+// Activity Log
+model ActivityLog {
+  id         String   @id @default(uuid())
+  firmId     String
+  userId     String? // ID of user who performed action
+  userType   String? // "SUPER_ADMIN", "ADMIN", "CA", "TRAINEE", "CLIENT"
+  documentId String?
+  action     String // CREATE, UPDATE, DELETE, LOGIN, UPLOAD, etc.
+  entityType String // User, Service, Invoice, Document, etc.
+  entityId   String?
+  entityName String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  firm       Firm        @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  document   Document?   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  superAdmin SuperAdmin? @relation("SuperAdminLogs", fields: [userId], references: [id], onDelete: SetNull)
+  admin      Admin?      @relation("AdminLogs", fields: [userId], references: [id], onDelete: SetNull)
+  ca         CA?         @relation("CALogs", fields: [userId], references: [id], onDelete: SetNull)
+  trainee    Trainee?    @relation("TraineeLogs", fields: [userId], references: [id], onDelete: SetNull)
+  client     Client?     @relation("ClientLogs", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([firmId])
+  @@index([userId])
+  @@index([userType])
+  @@index([documentId])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
+// Setting
+model Setting {
+  id          String   @id @default(uuid())
+  firmId      String
+  key         String
+  value       String
+  category    String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  firm Firm @relation(fields: [firmId], references: [id], onDelete: Cascade)
+
+  @@unique([firmId, key])
+  @@index([firmId])
+  @@index([category])
+  @@map("settings")
+}

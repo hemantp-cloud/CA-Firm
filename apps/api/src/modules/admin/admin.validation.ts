@@ -24,17 +24,23 @@ const baseUserSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email format'),
   phone: z.string().optional(),
-  role: z.enum(['CA', 'CLIENT'], {
-    errorMap: () => ({ message: 'Role must be CA or CLIENT' }),
-  }),
+  role: z.enum(['CA', 'CLIENT', 'PROJECT_MANAGER', 'TEAM_MEMBER', 'ADMIN'], {
+    errorMap: () => ({ message: 'Invalid Role' }),
+  }).optional(), // Role might be inferred from route or context
   clientId: z.string().uuid('Invalid client ID format').optional(),
   pan: z.string().optional(),
   aadhar: z.string().optional(),
   address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  pincode: z.string().optional(),
+  gstin: z.string().optional(), // Added for Client users
+  contactPerson: z.string().optional(), // Added for Client users
 });
 
 // CLIENT users don't need clientId - they ARE the client
-// Only CA users might need clientId if they belong to a specific client
+// Only CA/PM users might need clientId if they belong to a specific client
 export const createUserSchema = baseUserSchema;
 
 export const updateUserSchema = baseUserSchema.partial();
+

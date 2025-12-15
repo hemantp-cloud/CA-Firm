@@ -48,21 +48,21 @@ async function main() {
   });
   console.log(`✅ Created admin user: ${adminUser.email}\n`);
 
-  // 4. Create CA user (Linked to Partner)
-  console.log('🧑 Creating CA user...');
-  const caPassword = await bcrypt.hash('ca123', 10);
-  const caUser = await prisma.user.create({
+  // 4. Create Project Manager user (Linked to Partner)
+  console.log('🧑 Creating Project Manager user...');
+  const pmPassword = await bcrypt.hash('pm123', 10);
+  const pmUser = await prisma.user.create({
     data: {
       firmId: firm.id,
-      clientId: partner.id, // CA linked to Partner
-      email: 'ca@demo.com',
-      name: 'CA User',
-      role: Role.CA,
-      password: caPassword,
+      clientId: partner.id, // Project Manager linked to Partner
+      email: 'pm@demo.com',
+      name: 'Project Manager User',
+      role: Role.PROJECT_MANAGER,
+      password: pmPassword,
       emailVerified: true,
     },
   });
-  console.log(`✅ Created CA user: ${caUser.email}\n`);
+  console.log(`✅ Created Project Manager user: ${pmUser.email}\n`);
 
   // 5. Create CLIENT Users (End Customers linked to CA via Partner)
   console.log('👥 Creating client users (end customers)...');
@@ -137,7 +137,7 @@ async function main() {
         status: ServiceStatus.COMPLETED,
         priority: 2, // High
         dueDate: new Date('2024-07-10'),
-        assignedToId: caUser.id,
+        assignedToId: pmUser.id,
       },
     }),
     prisma.task.create({
@@ -148,7 +148,7 @@ async function main() {
         status: ServiceStatus.IN_PROGRESS,
         priority: 2,
         dueDate: new Date('2024-07-25'),
-        assignedToId: caUser.id,
+        assignedToId: pmUser.id,
       },
     }),
   ]);

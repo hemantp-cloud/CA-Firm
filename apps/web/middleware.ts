@@ -4,8 +4,10 @@ import type { NextRequest } from "next/server"
 
 // Role-based protected routes
 const roleRoutes = {
+  SUPER_ADMIN: ["/super-admin"],
   ADMIN: ["/admin"],
-  CA: ["/ca"],
+  PROJECT_MANAGER: ["/project-manager"],
+  TEAM_MEMBER: ["/team-member"],
   CLIENT: ["/client"],
 }
 
@@ -26,10 +28,14 @@ const authenticatedRoutes = [
 // Helper function to get dashboard URL based on role
 function getDashboardUrl(role: string): string {
   switch (role) {
+    case "SUPER_ADMIN":
+      return "/super-admin/dashboard"
     case "ADMIN":
       return "/admin/dashboard"
-    case "CA":
-      return "/ca/dashboard"
+    case "PROJECT_MANAGER":
+      return "/project-manager/dashboard"
+    case "TEAM_MEMBER":
+      return "/team-member/dashboard"
     case "CLIENT":
       return "/client/dashboard"
     default:
@@ -65,13 +71,6 @@ export async function middleware(request: NextRequest) {
     if (pathname === "/login" && token) {
       const role = (token.role as string) || ""
       const dashboardUrl = getDashboardUrl(role)
-
-      // Check if mustChangePassword flag exists
-      const mustChangePassword = (token as any).mustChangePassword === true
-      if (mustChangePassword) {
-        return NextResponse.redirect(new URL("/change-password", request.url))
-      }
-
       return NextResponse.redirect(new URL(dashboardUrl, request.url))
     }
 
@@ -94,10 +93,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check if route is protected (role-based)
+  const isSuperAdminRoute = matchesRoute(pathname, roleRoutes.SUPER_ADMIN)
   const isAdminRoute = matchesRoute(pathname, roleRoutes.ADMIN)
-  const isCARoute = matchesRoute(pathname, roleRoutes.CA)
+  const isProjectManagerRoute = matchesRoute(pathname, roleRoutes.PROJECT_MANAGER)
+  const isTeamMemberRoute = matchesRoute(pathname, roleRoutes.TEAM_MEMBER)
   const isClientRoute = matchesRoute(pathname, roleRoutes.CLIENT)
-  const isProtectedRoute = isAdminRoute || isCARoute || isClientRoute
+  const isProtectedRoute = isSuperAdminRoute || isAdminRoute || isProjectManagerRoute || isTeamMemberRoute || isClientRoute
 
   if (isProtectedRoute) {
     // If no token, redirect to login with callbackUrl
@@ -111,28 +112,29 @@ export async function middleware(request: NextRequest) {
     const role = (token.role as string) || ""
     const userRole = role.toUpperCase()
 
-    // Check if user must change password
-    const mustChangePassword = (token as any).mustChangePassword === true
-
-    if (mustChangePassword && pathname !== "/change-password") {
-      return NextResponse.redirect(new URL("/change-password", request.url))
-    }
-
     // Role-based access control
-    if (isAdminRoute) {
-      // Only ADMIN can access /admin/* routes
-      if (userRole !== "ADMIN") {
+    if (isSuperAdminRoute) {
+      if (userRole !== "SUPER_ADMIN") {
         const dashboardUrl = getDashboardUrl(userRole)
         return NextResponse.redirect(new URL(dashboardUrl, request.url))
       }
-    } else if (isCARoute) {
-      // Only CA can access /ca/* routes
-      if (userRole !== "CA") {
+    } else if (isAdminRoute) {
+      // SUPER_ADMIN and ADMIN can access admin routes
+      if (!["SUPER_ADMIN", "ADMIN"].includes(userRole)) {
+        const dashboardUrl = getDashboardUrl(userRole)
+        return NextResponse.redirect(new URL(dashboardUrl, request.url))
+      }
+    } else if (isProjectManagerRoute) {
+      if (userRole !== "PROJECT_MANAGER") {
+        const dashboardUrl = getDashboardUrl(userRole)
+        return NextResponse.redirect(new URL(dashboardUrl, request.url))
+      }
+    } else if (isTeamMemberRoute) {
+      if (userRole !== "TEAM_MEMBER") {
         const dashboardUrl = getDashboardUrl(userRole)
         return NextResponse.redirect(new URL(dashboardUrl, request.url))
       }
     } else if (isClientRoute) {
-      // Only CLIENT can access /client/* routes
       if (userRole !== "CLIENT") {
         const dashboardUrl = getDashboardUrl(userRole)
         return NextResponse.redirect(new URL(dashboardUrl, request.url))

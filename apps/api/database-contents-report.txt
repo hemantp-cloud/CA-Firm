@@ -1,0 +1,117 @@
+﻿
+====================================================================================================
+CURRENT DATABASE CONTENTS - DETAILED VIEW
+====================================================================================================
+
+≡ƒôè FIRM INFORMATION
+----------------------------------------------------------------------------------------------------
+Firm Name: CA Firm Management
+Firm Email: info@cafirm.com
+Firm ID: 10dd5448-b24b-46b6-9b3f-d225cfb07355
+
+
+≡ƒæÑ USERS TABLE (All Accounts)
+----------------------------------------------------------------------------------------------------
+Total users in database: 6
+
+
+ADMIN (1 user):
+  1. hemant.p@10x.in
+     Name: CA Admin
+     ClientId: NULL
+     Active: true
+     Created: 2025-12-02
+
+CA (1 user):
+  1. ca@test.com
+     Name: Test CA
+     ClientId: NULL
+     Active: true
+     Created: 2025-12-03
+
+TRAINEE (1 user):
+  1. hemant.rd21.153.0029@rdec.in
+     Name: Trainee1
+     ClientId: NULL
+     Active: true
+     Created: 2025-12-04
+
+CLIENT (3 users):
+  1. 100shashankshekhar@gmail.com
+     Name: Shashank Shekhar
+     ClientId: NULL
+     Active: true
+     Created: 2025-12-02
+  2. 100hemantpandey@gmail.com
+     Name: CA Hemant Pandey
+     ClientId: 40ea77ad-1678-4146-963e-7058f55787cc
+     Active: true
+     Created: 2025-12-02
+  3. client@test.com
+     Name: Test Client
+     ClientId: NULL
+     Active: true
+     Created: 2025-12-03
+
+
+≡ƒÅó CLIENTS TABLE (CA Partner Firms)
+----------------------------------------------------------------------------------------------------
+Total clients in database: 1
+
+1. Hemant CA counseltancy
+   Email: 100hemantpandey@gmail.com
+   Active: true
+   Commission: N/A%
+   Users linked: 1
+   Created: 2025-12-02
+
+
+≡ƒôê DASHBOARD STATISTICS (What Admin Dashboard Shows)
+----------------------------------------------------------------------------------------------------
+
+Active Users by Role:
+  ΓÇó Admins: 1
+  ΓÇó CAs: 1
+  ΓÇó Trainees: 1
+  ΓÇó Clients: 3
+
+Inactive Users: 0
+
+
+Γ£à YOUR MANUALLY CREATED USERS
+----------------------------------------------------------------------------------------------------
+Γ£ô hemant.p@10x.in
+  Role: ADMIN
+  Name: CA Admin
+  Active: true
+  ClientId: NULL
+Γ£ô 100hemantpandey@gmail.com
+  Role: CLIENT
+  Name: CA Hemant Pandey
+  Active: true
+  ClientId: 40ea77ad-1678-4146-963e-7058f55787cc
+Γ£ô hemant.rd21.153.0029@rdec.in
+  Role: TRAINEE
+  Name: Trainee1
+  Active: true
+  ClientId: NULL
+Γ£ô 100shashankshekhar@gmail.com
+  Role: CLIENT
+  Name: Shashank Shekhar
+  Active: true
+  ClientId: NULL
+
+
+ΓÜá∩╕Å  EXTRA USERS (Not in your list of 4)
+----------------------------------------------------------------------------------------------------
+Found 2 extra user(s):
+
+1. client@test.com (CLIENT) - Active: true
+2. ca@test.com (CA) - Active: true
+
+≡ƒÆí These might be from seed data or previous testing.
+
+====================================================================================================
+END OF REPORT
+====================================================================================================
+

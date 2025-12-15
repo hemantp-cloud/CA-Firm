@@ -358,7 +358,7 @@ router.post('/change-password', authenticate, async (req: AuthenticatedRequest, 
     const { currentPassword, newPassword } = validationResult.data;
 
     // Call change password service
-    const result = await changePassword(req.user.userId, currentPassword, newPassword);
+    const result = await changePassword(req.user.userId, req.user.role, currentPassword, newPassword);
 
     res.status(200).json({
       success: result.success,
@@ -388,7 +388,7 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res: Response)
     }
 
     // Get user data
-    const user = await getUserById(req.user.userId);
+    const user = await getUserById(req.user.userId, req.user.role);
 
     if (!user) {
       res.status(404).json({
@@ -408,7 +408,10 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res: Response)
 
     res.status(200).json({
       success: true,
-      data: user,
+      data: {
+        ...user,
+        role: req.user.role, // Ensure role is included
+      },
     });
   } catch (error) {
     console.error('Get me error:', error);

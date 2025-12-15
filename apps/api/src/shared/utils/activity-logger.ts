@@ -31,8 +31,8 @@ interface LogActivityParams {
   action: LOG_ACTION;
   entity: LOG_ENTITY;
   entityId?: string | null;
-  description?: string;
-  metadata?: Record<string, any>;
+  description?: string | null;
+  metadata?: Record<string, any> | null;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -52,7 +52,7 @@ export async function logActivity(params: LogActivityParams): Promise<void> {
       ipAddress: params.ipAddress ?? null,
       userAgent: params.userAgent ?? null,
     };
-    
+
     await (prisma as any).activityLog.create({
       data,
     });

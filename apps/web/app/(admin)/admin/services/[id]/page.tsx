@@ -68,7 +68,7 @@ export default function ServiceDetailsPage() {
   const fetchService = async () => {
     try {
       setIsLoading(true)
-      const response = await api.get(`/services/${serviceId}`)
+      const response = await api.get(`/admin/services/${serviceId}`)
       if (response.data.success) {
         setService(response.data.data)
       }

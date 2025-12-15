@@ -4,40 +4,67 @@ import path from 'path';
 
 /**
  * Get all documents with role-based filtering
+ * Updated to work with new schema (no 'user' table, use 'client' instead)
  */
 export async function getAllDocuments(userContext: {
   id: string;
   role: string;
   firmId: string;
   clientId: string | null;
-}, filters: { userId?: string; serviceId?: string; type?: string } = {}) {
+}, filters: { clientId?: string; serviceId?: string; type?: string } = {}) {
   const where: any = {
     firmId: userContext.firmId,
+    isDeleted: false,
+    NOT: {
+      hiddenFrom: {
+        has: userContext.role, // Exclude documents hidden from this role
+      },
+    },
   };
 
   // Role-based filtering
-  if (userContext.role === 'CA') {
-    // CA can see documents of their customers
-    const whereUser: any = {
-      firmId: userContext.firmId,
-      role: 'CLIENT' as any,
-    };
-    if (userContext.clientId) {
-      whereUser.clientId = userContext.clientId;
-    }
-    const userIds = await prisma.user.findMany({
-      where: whereUser,
+  if (userContext.role === 'PROJECT_MANAGER') {
+    // Project Manager can see ALL documents from Team Members and Clients in the firm
+    // Get all Team Member IDs and Client IDs in the firm
+    const teamMembers = await prisma.teamMember.findMany({
+      where: {
+        firmId: userContext.firmId,
+        deletedAt: null,
+      },
       select: { id: true },
     });
-    where.userId = { in: userIds.map((u) => u.id) };
+
+    const clients = await prisma.client.findMany({
+      where: {
+        firmId: userContext.firmId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    // Show documents that belong to any client OR uploaded by any team member in the firm
+    where.OR = [
+      { clientId: { in: clients.map((c) => c.id) } },
+      { teamMemberId: { in: teamMembers.map((tm) => tm.id) } },
+    ];
   } else if (userContext.role === 'CLIENT') {
     // CLIENT can only see their own documents
-    where.userId = userContext.id;
+    where.clientId = userContext.id;
+  } else if (userContext.role === 'TEAM_MEMBER') {
+    // Team member can see documents of assigned clients only
+    const assignments = await prisma.clientAssignment.findMany({
+      where: {
+        teamMemberId: userContext.id,
+      },
+      select: { clientId: true },
+    });
+    where.clientId = { in: assignments.map((a) => a.clientId) };
   }
+  // ADMIN and SUPER_ADMIN can see all documents in the firm (no additional filter)
 
   // Apply filters
-  if (filters.userId) {
-    where.userId = filters.userId;
+  if (filters.clientId) {
+    where.clientId = filters.clientId;
   }
 
   if (filters.serviceId) {
@@ -45,13 +72,13 @@ export async function getAllDocuments(userContext: {
   }
 
   if (filters.type) {
-    where.documentType = filters.type as any;
+    where.documentType = filters.type;
   }
 
   const documents = await prisma.document.findMany({
     where,
     include: {
-      user: {
+      client: {
         select: {
           id: true,
           name: true,
@@ -63,14 +90,14 @@ export async function getAllDocuments(userContext: {
           title: true,
         },
       },
-    } as any,
+    },
     orderBy: {
       uploadedAt: 'desc',
     },
   });
 
   // Convert BigInt fields to strings for JSON serialization
-  return documents.map((doc: any) => ({
+  return documents.map((doc) => ({
     ...doc,
     fileSize: doc.fileSize?.toString() || '0',
   }));
@@ -91,30 +118,34 @@ export async function getDocumentById(
   const where: any = {
     id,
     firmId: userContext.firmId,
+    isDeleted: false,
   };
 
   // Role-based filtering
-  if (userContext.role === 'CA') {
-    const whereUser: any = {
-      firmId: userContext.firmId,
-      role: 'CLIENT' as any,
-    };
-    if (userContext.clientId) {
-      whereUser.clientId = userContext.clientId;
-    }
-    const userIds = await prisma.user.findMany({
-      where: whereUser,
+  if (userContext.role === 'PROJECT_MANAGER') {
+    const managedClients = await prisma.client.findMany({
+      where: {
+        firmId: userContext.firmId,
+        managedBy: userContext.id,
+        deletedAt: null,
+      },
       select: { id: true },
     });
-    where.userId = { in: userIds.map((u) => u.id) };
+    where.clientId = { in: managedClients.map((c) => c.id) };
   } else if (userContext.role === 'CLIENT') {
-    where.userId = userContext.id;
+    where.clientId = userContext.id;
+  } else if (userContext.role === 'TEAM_MEMBER') {
+    const assignments = await prisma.clientAssignment.findMany({
+      where: { teamMemberId: userContext.id },
+      select: { clientId: true },
+    });
+    where.clientId = { in: assignments.map((a) => a.clientId) };
   }
 
   const document = await prisma.document.findFirst({
     where,
     include: {
-      user: {
+      client: {
         select: {
           id: true,
           name: true,
@@ -126,7 +157,7 @@ export async function getDocumentById(
           title: true,
         },
       },
-    } as any,
+    },
   });
 
   if (!document) {
@@ -136,9 +167,6 @@ export async function getDocumentById(
   return document;
 }
 
-/**
- * Upload document
- */
 import { triggerDocumentEvent } from '../../shared/services/pusher.service';
 
 /**
@@ -156,41 +184,42 @@ export async function uploadDocument(
     documentType: string;
     serviceId?: string;
     description?: string;
-    userId?: string;
+    clientId?: string;
   }
 ) {
-  // Determine userId - CLIENT uploads for themselves, ADMIN/CA can specify
-  let userId = userContext.id;
+  // Determine clientId
+  let clientId: string | null = null;
 
-  if (userContext.role === 'ADMIN' || userContext.role === 'CA') {
-    if (documentData.userId) {
-      // Verify that this user belongs to the firm/CA
-      const whereUser: any = {
-        id: documentData.userId,
-        firmId: userContext.firmId,
-        role: 'CLIENT' as any,
-      };
-
-      if (userContext.role === 'CA' && userContext.clientId) {
-        whereUser.clientId = userContext.clientId;
-      }
-
-      const targetUser = await prisma.user.findFirst({
-        where: whereUser,
+  if (userContext.role === 'CLIENT') {
+    // Client uploads for themselves
+    clientId = userContext.id;
+  } else if (['ADMIN', 'SUPER_ADMIN', 'PROJECT_MANAGER', 'TEAM_MEMBER'].includes(userContext.role)) {
+    // Staff can upload for a client
+    if (documentData.clientId) {
+      // Verify that this client belongs to the firm
+      const targetClient = await prisma.client.findFirst({
+        where: {
+          id: documentData.clientId,
+          firmId: userContext.firmId,
+          deletedAt: null,
+        },
       });
 
-      if (!targetUser) {
-        throw new Error('Invalid user ID or user not found');
+      if (!targetClient) {
+        throw new Error('Invalid client ID or client not found');
       }
-      userId = documentData.userId;
+      clientId = documentData.clientId;
     }
-    // If no userId provided, it defaults to uploader (CA/ADMIN themselves)
+  }
+
+  if (!clientId) {
+    throw new Error('Client ID is required for document upload');
   }
 
   // Generate unique filename
   const fileExt = path.extname(file.originalname);
   const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}${fileExt}`;
-  const storagePath = path.join('uploads', userId, uniqueFileName);
+  const storagePath = path.join('uploads', clientId, uniqueFileName);
   const fullPath = path.join(process.cwd(), storagePath);
 
   // Ensure directory exists
@@ -202,11 +231,14 @@ export async function uploadDocument(
   // Save file
   fs.writeFileSync(fullPath, file.buffer);
 
+  // Determine if uploaded by team member
+  const teamMemberId = userContext.role === 'TEAM_MEMBER' ? userContext.id : null;
+
   // Create document record
   const document = await prisma.document.create({
     data: {
       firmId: userContext.firmId,
-      userId,
+      clientId,
       serviceId: documentData.serviceId || null,
       fileName: file.originalname,
       fileType: file.mimetype,
@@ -215,9 +247,10 @@ export async function uploadDocument(
       documentType: documentData.documentType as any,
       description: documentData.description || null,
       status: 'PENDING',
-    } as any,
+      teamMemberId,
+    },
     include: {
-      user: {
+      client: {
         select: {
           id: true,
           name: true,
@@ -229,7 +262,7 @@ export async function uploadDocument(
           title: true,
         },
       },
-    } as any,
+    },
   });
 
   // Log activity
@@ -237,21 +270,25 @@ export async function uploadDocument(
     data: {
       firmId: userContext.firmId,
       userId: userContext.id,
+      userType: userContext.role,
       action: 'UPLOAD',
       entityType: 'DOCUMENT',
       entityId: document.id,
       entityName: document.fileName,
       details: {
         documentType: documentData.documentType,
-        uploadedFor: userId,
+        uploadedFor: clientId,
       },
     },
   });
 
   // Trigger Pusher event
-  await triggerDocumentEvent(userContext.firmId, userId, 'document-uploaded', document);
+  await triggerDocumentEvent(userContext.firmId, clientId, 'document-uploaded', document);
 
-  return document;
+  return {
+    ...document,
+    fileSize: document.fileSize.toString(),
+  };
 }
 
 /**
@@ -268,7 +305,6 @@ export async function updateDocumentStatus(
 ) {
   const document = await prisma.document.findUnique({
     where: { id },
-    include: { user: true },
   });
 
   if (!document) {
@@ -284,7 +320,7 @@ export async function updateDocumentStatus(
     data: {
       status: status as any,
       approvedAt: status === 'APPROVED' ? new Date() : null,
-    } as any,
+    },
   });
 
   // Log activity
@@ -292,19 +328,22 @@ export async function updateDocumentStatus(
     data: {
       firmId: userContext.firmId,
       userId: userContext.id,
+      userType: userContext.role,
       action: 'UPDATE_STATUS',
       entityType: 'DOCUMENT',
       entityId: document.id,
       entityName: document.fileName,
       details: {
-        oldStatus: (document as any).status,
+        oldStatus: document.status,
         newStatus: status,
       },
     },
   });
 
   // Trigger Pusher event
-  await triggerDocumentEvent(userContext.firmId, document.userId, 'document-updated', updatedDocument);
+  if (document.clientId) {
+    await triggerDocumentEvent(userContext.firmId, document.clientId, 'document-updated', updatedDocument);
+  }
 
   return updatedDocument;
 }
@@ -322,7 +361,14 @@ export async function downloadDocument(
   }
 ) {
   const document = await getDocumentById(id, userContext);
-  const fullPath = path.join(process.cwd(), document.storagePath);
+
+  // Handle both absolute and relative paths
+  let fullPath: string;
+  if (path.isAbsolute(document.storagePath)) {
+    fullPath = document.storagePath;
+  } else {
+    fullPath = path.join(process.cwd(), document.storagePath);
+  }
 
   if (!fs.existsSync(fullPath)) {
     throw new Error('File not found on server');
@@ -336,7 +382,7 @@ export async function downloadDocument(
 }
 
 /**
- * Delete document
+ * Delete document (soft delete)
  */
 export async function deleteDocument(
   id: string,
@@ -347,15 +393,76 @@ export async function deleteDocument(
     clientId: string | null;
   }
 ) {
-  const document = await getDocumentById(id, userContext);
+  await getDocumentById(id, userContext);
+
+  // Soft delete the document
+  await prisma.document.update({
+    where: { id },
+    data: {
+      isDeleted: true,
+      deletedAt: new Date(),
+      deletedBy: userContext.id,
+    },
+  });
+
+  return { success: true };
+}
+
+/**
+ * Hide document from current user's role (soft hide, not delete)
+ */
+export async function hideDocument(
+  id: string,
+  userContext: {
+    id: string;
+    role: string;
+    firmId: string;
+    clientId: string | null;
+  }
+) {
+  // Verify document exists and user has access
+  await getDocumentById(id, userContext);
+
+  // Add current role to hiddenFrom array
+  await prisma.document.update({
+    where: { id },
+    data: {
+      hiddenFrom: {
+        push: userContext.role, // Add role to hiddenFrom array
+      },
+    },
+  });
+
+  return { success: true };
+}
+
+/**
+ * Hard delete document (for cleanup)
+ */
+export async function hardDeleteDocument(
+  id: string,
+  userContext: {
+    id: string;
+    role: string;
+    firmId: string;
+    clientId: string | null;
+  }
+) {
+  const doc = await prisma.document.findUnique({
+    where: { id },
+  });
+
+  if (!doc || doc.firmId !== userContext.firmId) {
+    throw new Error('Document not found');
+  }
 
   // Delete file from filesystem
-  const fullPath = path.join(process.cwd(), document.storagePath);
+  const fullPath = path.join(process.cwd(), doc.storagePath);
   if (fs.existsSync(fullPath)) {
     fs.unlinkSync(fullPath);
   }
 
-  // Delete document record
+  // Hard delete document record
   await prisma.document.delete({
     where: { id },
   });

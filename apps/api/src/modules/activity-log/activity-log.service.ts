@@ -2,15 +2,16 @@ import prisma from '../../shared/utils/prisma';
 
 export interface CreateActivityLogParams {
     firmId: string;
-    userId?: string;
-    documentId?: string;
+    userId?: string | null;
+    userType?: string; // "SUPER_ADMIN", "ADMIN", "PROJECT_MANAGER", "TEAM_MEMBER", "CLIENT"
+    documentId?: string | null;
     action: string;
     entityType: string;
-    entityId?: string;
-    entityName?: string;
+    entityId?: string | null;
+    entityName?: string | null;
     details?: any;
-    ipAddress?: string;
-    userAgent?: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
 }
 
 /**
@@ -21,6 +22,7 @@ export async function createActivityLog(params: CreateActivityLogParams) {
         data: {
             firmId: params.firmId,
             userId: params.userId || null,
+            userType: params.userType || null,
             documentId: params.documentId || null,
             action: params.action,
             entityType: params.entityType,
@@ -39,6 +41,7 @@ export async function createActivityLog(params: CreateActivityLogParams) {
 export async function getActivityLogs(filters: {
     firmId: string;
     userId?: string;
+    userType?: string;
     documentId?: string;
     entityType?: string;
     limit?: number;
@@ -52,6 +55,10 @@ export async function getActivityLogs(filters: {
         where.userId = filters.userId;
     }
 
+    if (filters.userType) {
+        where.userType = filters.userType;
+    }
+
     if (filters.documentId) {
         where.documentId = filters.documentId;
     }
@@ -60,17 +67,9 @@ export async function getActivityLogs(filters: {
         where.entityType = filters.entityType;
     }
 
-    return await prisma.activityLog.findMany({
+    const logs = await prisma.activityLog.findMany({
         where,
         include: {
-            user: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    role: true,
-                },
-            },
             document: {
                 select: {
                     id: true,
@@ -85,48 +84,42 @@ export async function getActivityLogs(filters: {
         take: filters.limit || 50,
         skip: filters.offset || 0,
     });
+
+    // Return with formatted data
+    return logs.map(log => ({
+        ...log,
+        createdAt: log.createdAt.toISOString(),
+    }));
 }
 
 /**
  * Get activity history for a specific document
  */
 export async function getDocumentHistory(documentId: string) {
-    return await prisma.activityLog.findMany({
+    const logs = await prisma.activityLog.findMany({
         where: {
             documentId,
-        },
-        include: {
-            user: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    role: true,
-                },
-            },
         },
         orderBy: {
             createdAt: 'asc',
         },
     });
+
+    return logs.map(log => ({
+        ...log,
+        createdAt: log.createdAt.toISOString(),
+    }));
 }
 
 /**
  * Get recent activity for a firm
  */
 export async function getRecentActivity(firmId: string, limit: number = 20) {
-    return await prisma.activityLog.findMany({
+    const logs = await prisma.activityLog.findMany({
         where: {
             firmId,
         },
         include: {
-            user: {
-                select: {
-                    id: true,
-                    name: true,
-                    role: true,
-                },
-            },
             document: {
                 select: {
                     id: true,
@@ -139,4 +132,29 @@ export async function getRecentActivity(firmId: string, limit: number = 20) {
         },
         take: limit,
     });
+
+    return logs.map(log => ({
+        ...log,
+        createdAt: log.createdAt.toISOString(),
+    }));
+}
+
+/**
+ * Get activity by entity
+ */
+export async function getActivityByEntity(entityType: string, entityId: string) {
+    const logs = await prisma.activityLog.findMany({
+        where: {
+            entityType,
+            entityId,
+        },
+        orderBy: {
+            createdAt: 'desc',
+        },
+    });
+
+    return logs.map(log => ({
+        ...log,
+        createdAt: log.createdAt.toISOString(),
+    }));
 }

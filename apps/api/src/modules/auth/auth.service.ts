@@ -59,15 +59,14 @@ function generateJWTToken(user: AuthenticatedUser): string {
 }
 
 /**
- * Converts Prisma User to AuthenticatedUser
+ * Converts database user to AuthenticatedUser
  */
-function toAuthenticatedUser(user: any): AuthenticatedUser {
+function toAuthenticatedUser(user: any, role: string): AuthenticatedUser {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
-    role: user.role,
-    clientId: user.clientId,
+    role: role as any, // Role is validated before reaching here
     firmId: user.firmId,
     twoFactorEnabled: user.twoFactorEnabled,
     mustChangePassword: user.mustChangePassword,
@@ -80,60 +79,136 @@ function toAuthenticatedUser(user: any): AuthenticatedUser {
  */
 export function getRedirectUrl(role: string): string {
   switch (role) {
-    case 'CA':
-      return '/ca/dashboard';
-    case 'CLIENT':
-      return '/client/dashboard';
+    case 'SUPER_ADMIN':
+      return '/super-admin/dashboard';
     case 'ADMIN':
       return '/admin/dashboard';
+    case 'PROJECT_MANAGER':
+      return '/project-manager/dashboard';
+    case 'TEAM_MEMBER':
+      return '/team-member/dashboard';
+    case 'CLIENT':
+      return '/client/dashboard';
     default:
-      return '/404notfound';
+      return '/login';
   }
 }
 
 /**
  * Checks if 2FA is required for a role
- * CA and CLIENT always require 2FA, USER is optional
  */
 function requiresTwoFactor(role: string, twoFactorEnabled: boolean): boolean {
-  if (role === 'CA' || role === 'CLIENT') {
+  // Super Admin and Admin always require 2FA for security
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
     return true;
   }
+  // Others only if enabled
   return twoFactorEnabled;
 }
 
 /**
- * Handles failed login attempt
- * Locks account after MAX_FAILED_ATTEMPTS for LOCKOUT_DURATION_MINUTES
+ * Find user across all role tables
  */
-async function handleFailedLogin(userId: string): Promise<void> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  }) as any;
+async function findUserByEmail(email: string): Promise<{ user: any; role: string; table: string } | null> {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Check Super Admin
+  let user = await prisma.superAdmin.findUnique({
+    where: { email: normalizedEmail },
+  });
+  if (user) return { user, role: 'SUPER_ADMIN', table: 'super_admins' };
+
+  // Check Admin
+  user = await prisma.admin.findUnique({
+    where: { email: normalizedEmail },
+  });
+  if (user) return { user, role: 'ADMIN', table: 'admins' };
+
+  // Check Project Manager
+  user = await prisma.projectManager.findUnique({
+    where: { email: normalizedEmail },
+  });
+  if (user) return { user, role: 'PROJECT_MANAGER', table: 'project_managers' };
+
+  // Check Team Member
+  user = await prisma.teamMember.findUnique({
+    where: { email: normalizedEmail },
+  });
+  if (user) return { user, role: 'TEAM_MEMBER', table: 'team_members' };
+
+  // Check Client
+  user = await prisma.client.findUnique({
+    where: { email: normalizedEmail },
+  });
+  if (user) return { user, role: 'CLIENT', table: 'clients' };
+
+  return null;
+}
+
+/**
+ * Update user in correct table
+ */
+async function updateUserByRole(userId: string, role: string, data: any): Promise<void> {
+  switch (role) {
+    case 'SUPER_ADMIN':
+      await prisma.superAdmin.update({ where: { id: userId }, data });
+      break;
+    case 'ADMIN':
+      await prisma.admin.update({ where: { id: userId }, data });
+      break;
+    case 'PROJECT_MANAGER':
+      await prisma.projectManager.update({ where: { id: userId }, data });
+      break;
+    case 'TEAM_MEMBER':
+      await prisma.teamMember.update({ where: { id: userId }, data });
+      break;
+    case 'CLIENT':
+      await prisma.client.update({ where: { id: userId }, data });
+      break;
+  }
+}
+
+/**
+ * Handles failed login attempt
+ */
+async function handleFailedLogin(userId: string, role: string): Promise<void> {
+  // Get current user by ID and role
+
+  // Get current user
+  let user: any;
+  switch (role) {
+    case 'SUPER_ADMIN':
+      user = await prisma.superAdmin.findUnique({ where: { id: userId } });
+      break;
+    case 'ADMIN':
+      user = await prisma.admin.findUnique({ where: { id: userId } });
+      break;
+    case 'PROJECT_MANAGER':
+      user = await prisma.projectManager.findUnique({ where: { id: userId } });
+      break;
+    case 'TEAM_MEMBER':
+      user = await prisma.teamMember.findUnique({ where: { id: userId } });
+      break;
+    case 'CLIENT':
+      user = await prisma.client.findUnique({ where: { id: userId } });
+      break;
+  }
 
   if (!user) return;
 
-  const newAttempts = ((user.failedLoginAttempts as number) || 0) + 1;
+  const newAttempts = (user.failedLoginAttempts || 0) + 1;
 
   if (newAttempts >= MAX_FAILED_ATTEMPTS) {
-    // Lock account
     const lockedUntil = new Date();
     lockedUntil.setMinutes(lockedUntil.getMinutes() + LOCKOUT_DURATION_MINUTES);
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        failedLoginAttempts: newAttempts,
-        lockedUntil,
-      } as any,
+    await updateUserByRole(userId, role, {
+      failedLoginAttempts: newAttempts,
+      lockedUntil,
     });
   } else {
-    // Increment failed attempts
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        failedLoginAttempts: newAttempts,
-      } as any,
+    await updateUserByRole(userId, role, {
+      failedLoginAttempts: newAttempts,
     });
   }
 }
@@ -141,13 +216,10 @@ async function handleFailedLogin(userId: string): Promise<void> {
 /**
  * Resets failed login attempts on successful login
  */
-async function resetFailedLoginAttempts(userId: string): Promise<void> {
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-    } as any,
+async function resetFailedLoginAttempts(userId: string, role: string): Promise<void> {
+  await updateUserByRole(userId, role, {
+    failedLoginAttempts: 0,
+    lockedUntil: null,
   });
 }
 
@@ -157,20 +229,24 @@ async function resetFailedLoginAttempts(userId: string): Promise<void> {
 
 /**
  * Login user with email and password
- * Handles 2FA, account locking, and failed login attempts
+ * Checks all 5 role tables
  */
 export async function login(
   email: string,
   password: string
 ): Promise<LoginResponse | { requiresTwoFactor: true; email: string }> {
-  // Find user by email
-  const user = await prisma.user.findFirst({
-    where: { email: email.toLowerCase().trim() },
-  }) as any;
+  console.log('LOGIN ATTEMPT:', { email, passwordLength: password?.length });
 
-  if (!user) {
+  // Find user across all tables
+  const result = await findUserByEmail(email);
+
+  console.log('FIND USER RESULT:', result ? { found: true, role: result.role, email: result.user?.email } : { found: false });
+
+  if (!result) {
     throw new Error('Invalid credentials');
   }
+
+  const { user, role } = result;
 
   // Check if user is active
   if (!user.isActive) {
@@ -195,42 +271,36 @@ export async function login(
   const isPasswordValid = await bcrypt.compare(password, user.password);
 
   if (!isPasswordValid) {
-    // Handle failed login attempt
-    await handleFailedLogin(user.id);
+    await handleFailedLogin(user.id, role);
     throw new Error('Invalid credentials');
   }
 
-  // Reset failed login attempts on successful password verification
-  await resetFailedLoginAttempts(user.id);
+  // Reset failed login attempts
+  await resetFailedLoginAttempts(user.id, role);
 
   // Check if 2FA is required
-  const needs2FA = requiresTwoFactor(user.role, user.twoFactorEnabled);
+  const needs2FA = requiresTwoFactor(role, user.twoFactorEnabled);
 
   if (needs2FA) {
     // Generate OTP
     const otp = generateOTP();
     const otpExpiry = generateOTPExpiry();
 
-    // Save OTP and expiry to user record
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        otpCode: otp,
-        otpExpiry,
-      } as any,
+    // Save OTP
+    await updateUserByRole(user.id, role, {
+      otpCode: otp,
+      otpExpiry,
     });
 
     // Send OTP email
     await sendOTPEmail(user.email, otp, user.name);
 
-    // Return 2FA required response
-    // In development mode (no RESEND_API_KEY), include OTP in response for testing
     const response: any = {
       requiresTwoFactor: true,
-      email: user.email, // Send full email so frontend can use it for verification
+      email: user.email,
     };
 
-    // Include OTP in development mode for easier testing
+    // Development mode - include OTP
     if (!process.env.RESEND_API_KEY) {
       response.devOtp = otp;
       console.log('\n🔐 DEVELOPMENT MODE: OTP for', maskEmail(user.email), 'is:', otp);
@@ -240,17 +310,14 @@ export async function login(
     return response;
   }
 
-  // 2FA not required - generate JWT and return
-  const authenticatedUser = toAuthenticatedUser(user);
+  // No 2FA - generate JWT
+  const authenticatedUser = toAuthenticatedUser(user, role);
   const token = generateJWTToken(authenticatedUser);
-  const redirectUrl = getRedirectUrl(user.role);
+  const redirectUrl = getRedirectUrl(role);
 
   // Update last login
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      lastLoginAt: new Date(),
-    } as any,
+  await updateUserByRole(user.id, role, {
+    lastLoginAt: new Date(),
   });
 
   return {
@@ -268,27 +335,27 @@ export async function verifyOTP(
   email: string,
   otp: string
 ): Promise<VerifyOtpResponse> {
-  // Find user by email
-  const user = await prisma.user.findFirst({
-    where: { email: email.toLowerCase().trim() },
-  }) as any;
+  // Find user
+  const result = await findUserByEmail(email);
 
-  if (!user) {
+  if (!result) {
     throw new Error('Invalid credentials');
   }
 
-  // Check if user is active
+  const { user, role } = result;
+
+  // Check if active
   if (!user.isActive) {
     throw new Error('Account is inactive. Please contact administrator.');
   }
 
-  // Check if account is locked
+  // Check if locked
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     const minutesLeft = Math.ceil(
       (user.lockedUntil.getTime() - new Date().getTime()) / 60000
     );
     throw new Error(
-      `Account is locked due to too many failed login attempts. Try again in ${minutesLeft} minute(s).`
+      `Account is locked. Try again in ${minutesLeft} minute(s).`
     );
   }
 
@@ -298,32 +365,26 @@ export async function verifyOTP(
     throw new Error('Invalid OTP');
   }
 
-  // Check if OTP is expired
+  // Check expiry
   if (!isOTPValid(user.otpExpiry)) {
     console.log(`OTP Verification Failed for ${maskEmail(email)}: OTP Expired`);
     throw new Error('OTP has expired. Please request a new one.');
   }
 
-  // Clear OTP fields
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      otpCode: null,
-      otpExpiry: null,
-    } as any,
+  // Clear OTP
+  await updateUserByRole(user.id, role, {
+    otpCode: null,
+    otpExpiry: null,
   });
 
-  // Generate JWT token
-  const authenticatedUser = toAuthenticatedUser(user);
+  // Generate JWT
+  const authenticatedUser = toAuthenticatedUser(user, role);
   const token = generateJWTToken(authenticatedUser);
-  const redirectUrl = getRedirectUrl(user.role);
+  const redirectUrl = getRedirectUrl(role);
 
   // Update last login
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      lastLoginAt: new Date(),
-    } as any,
+  await updateUserByRole(user.id, role, {
+    lastLoginAt: new Date(),
   });
 
   return {
@@ -334,19 +395,17 @@ export async function verifyOTP(
 }
 
 /**
- * Resend OTP to user's email
+ * Resend OTP
  */
 export async function resendOTP(email: string): Promise<{ success: boolean; email: string }> {
-  // Find user by email
-  const user = await prisma.user.findFirst({
-    where: { email: email.toLowerCase().trim() },
-  }) as any;
+  const result = await findUserByEmail(email);
 
-  if (!user) {
+  if (!result) {
     throw new Error('Invalid credentials');
   }
 
-  // Check if user is active
+  const { user, role } = result;
+
   if (!user.isActive) {
     throw new Error('Account is inactive. Please contact administrator.');
   }
@@ -355,16 +414,11 @@ export async function resendOTP(email: string): Promise<{ success: boolean; emai
   const otp = generateOTP();
   const otpExpiry = generateOTPExpiry();
 
-  // Save OTP and expiry to user record
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      otpCode: otp,
-      otpExpiry,
-    } as any,
+  await updateUserByRole(user.id, role, {
+    otpCode: otp,
+    otpExpiry,
   });
 
-  // Send OTP email
   await sendOTPEmail(user.email, otp, user.name);
 
   const response: any = {
@@ -372,11 +426,9 @@ export async function resendOTP(email: string): Promise<{ success: boolean; emai
     email: maskEmail(user.email),
   };
 
-  // Include OTP in development mode for easier testing
   if (!process.env.RESEND_API_KEY) {
     response.devOtp = otp;
     console.log('\n🔐 DEVELOPMENT MODE: Resent OTP for', maskEmail(user.email), 'is:', otp);
-    console.log('⚠️  In production, OTP will only be sent via email.\n');
   }
 
   return response;
@@ -384,21 +436,16 @@ export async function resendOTP(email: string): Promise<{ success: boolean; emai
 
 /**
  * Google OAuth authentication
- * TODO: Implement Google token verification with google-auth-library
  */
 import { OAuth2Client } from 'google-auth-library';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
-/**
- * Google OAuth authentication
- */
 export async function googleAuth(
   googleToken: string
 ): Promise<LoginResponse | { requiresTwoFactor: true; email: string }> {
   try {
-    // Verify Google token
     const ticket = await client.verifyIdToken({
       idToken: googleToken,
       audience: [
@@ -409,97 +456,60 @@ export async function googleAuth(
 
     const payload = ticket.getPayload();
 
-    if (!payload) {
+    if (!payload || !payload.email) {
       throw new Error('Invalid Google token');
     }
 
-    const googleId = payload.sub;
     const email = payload.email;
 
-    if (!email) {
-      throw new Error('Email not found in Google token');
-    }
+    // Find user
+    const result = await findUserByEmail(email);
 
-    // Find user by googleId OR email
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { googleId },
-          { email: email.toLowerCase().trim() },
-        ],
-      },
-    }) as any;
-
-    if (!user) {
+    if (!result) {
       throw new Error('Account not found. Please contact administrator.');
     }
 
-    // CA and Client can use Google login if their email matches
-    // Admin creates the account first, so we just link it here
+    const { user, role } = result;
 
-
-    // Check if user is active
     if (!user.isActive) {
       throw new Error('Account is inactive. Please contact administrator.');
     }
 
-    // Link googleId if not already linked
-    if (!user.googleId) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { googleId } as any,
-      });
-      user.googleId = googleId;
-    }
+    // Link googleId if not linked
+    // Note: googleId field needs to be added to all role tables if needed
 
-    // Check if 2FA is required
-    // CLIENT always requires 2FA, USER only if enabled
-    const needs2FA = requiresTwoFactor(user.role, user.twoFactorEnabled);
+    const needs2FA = requiresTwoFactor(role, user.twoFactorEnabled);
 
     if (needs2FA) {
-      // Generate OTP
       const otp = generateOTP();
       const otpExpiry = generateOTPExpiry();
 
-      // Save OTP and expiry to user record
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          otpCode: otp,
-          otpExpiry,
-        } as any,
+      await updateUserByRole(user.id, role, {
+        otpCode: otp,
+        otpExpiry,
       });
 
-      // Send OTP email
       await sendOTPEmail(user.email, otp, user.name);
 
-      // Return 2FA required response
       const response: any = {
         requiresTwoFactor: true,
-        email: user.email, // Send full email so frontend can use it for verification
+        email: user.email,
       };
 
-      // Include OTP in development mode for easier testing
       if (!process.env.RESEND_API_KEY) {
         response.devOtp = otp;
         console.log('\n🔐 DEVELOPMENT MODE: OTP for', maskEmail(user.email), 'is:', otp);
-        console.log('⚠️  In production, OTP will only be sent via email.\n');
       }
 
       return response;
     }
 
-    // 2FA not required - generate JWT and return
-    const authenticatedUser = toAuthenticatedUser(user);
+    const authenticatedUser = toAuthenticatedUser(user, role);
     const token = generateJWTToken(authenticatedUser);
-    const redirectUrl = getRedirectUrl(user.role);
+    const redirectUrl = getRedirectUrl(role);
 
-    // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        lastLoginAt: new Date(),
-      } as any,
+    await updateUserByRole(user.id, role, {
+      lastLoginAt: new Date(),
     });
 
     return {
@@ -520,20 +530,17 @@ export async function googleAuth(
 export async function forgotPassword(
   email: string
 ): Promise<ForgotPasswordResponse> {
-  // Find user by email
-  const user = await prisma.user.findFirst({
-    where: { email: email.toLowerCase().trim() },
-  });
+  const result = await findUserByEmail(email);
 
-  // Always return success (don't reveal if email exists)
-  if (!user) {
+  if (!result) {
     return {
       success: true,
       message: 'If an account exists, a password reset link has been sent.',
     };
   }
 
-  // Check if user is active
+  const { user, role } = result;
+
   if (!user.isActive) {
     return {
       success: true,
@@ -541,24 +548,17 @@ export async function forgotPassword(
     };
   }
 
-  // Generate reset token (UUID)
   const resetToken = uuidv4();
   const resetExpiry = new Date();
   resetExpiry.setHours(resetExpiry.getHours() + RESET_TOKEN_EXPIRY_HOURS);
 
-  // Save token and expiry to user
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      passwordResetToken: resetToken,
-      passwordResetExpiry: resetExpiry,
-    } as any,
+  await updateUserByRole(user.id, role, {
+    passwordResetToken: resetToken,
+    passwordResetExpiry: resetExpiry,
   });
 
-  // Generate reset link
   const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}`;
 
-  // Send password reset email
   await sendPasswordResetEmail(user.email, resetLink, user.name);
 
   return {
@@ -574,36 +574,50 @@ export async function resetPassword(
   token: string,
   newPassword: string
 ): Promise<PasswordResetResponse> {
-  // Find user by reset token
-  const user = await prisma.user.findFirst({
-    where: {
-      passwordResetToken: token,
-    } as any,
-  }) as any;
+  // Check all tables for reset token
+  let user: any = null;
+  let role: string = '';
+
+  user = await prisma.superAdmin.findFirst({ where: { passwordResetToken: token } });
+  if (user) role = 'SUPER_ADMIN';
+
+  if (!user) {
+    user = await prisma.admin.findFirst({ where: { passwordResetToken: token } });
+    if (user) role = 'ADMIN';
+  }
+
+  if (!user) {
+    user = await prisma.projectManager.findFirst({ where: { passwordResetToken: token } });
+    if (user) role = 'PROJECT_MANAGER';
+  }
+
+  if (!user) {
+    user = await prisma.teamMember.findFirst({ where: { passwordResetToken: token } });
+    if (user) role = 'TEAM_MEMBER';
+  }
+
+  if (!user) {
+    user = await prisma.client.findFirst({ where: { passwordResetToken: token } });
+    if (user) role = 'CLIENT';
+  }
 
   if (!user) {
     throw new Error('Invalid or expired reset token');
   }
 
-  // Check if token is expired
   if (!user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
     throw new Error('Invalid or expired reset token');
   }
 
-  // Hash new password
   const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-  // Update password and clear reset token fields
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      password: hashedPassword,
-      passwordResetToken: null,
-      passwordResetExpiry: null,
-      mustChangePassword: false,
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-    } as any,
+  await updateUserByRole(user.id, role, {
+    password: hashedPassword,
+    passwordResetToken: null,
+    passwordResetExpiry: null,
+    mustChangePassword: false,
+    failedLoginAttempts: 0,
+    lockedUntil: null,
   });
 
   return {
@@ -617,19 +631,35 @@ export async function resetPassword(
  */
 export async function changePassword(
   userId: string,
+  userRole: string,
   currentPassword: string,
   newPassword: string
 ): Promise<PasswordResetResponse> {
-  // Find user by id
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  }) as any;
+  // Get user from correct table
+  let user: any = null;
+
+  switch (userRole) {
+    case 'SUPER_ADMIN':
+      user = await prisma.superAdmin.findUnique({ where: { id: userId } });
+      break;
+    case 'ADMIN':
+      user = await prisma.admin.findUnique({ where: { id: userId } });
+      break;
+    case 'PROJECT_MANAGER':
+      user = await prisma.projectManager.findUnique({ where: { id: userId } });
+      break;
+    case 'TEAM_MEMBER':
+      user = await prisma.teamMember.findUnique({ where: { id: userId } });
+      break;
+    case 'CLIENT':
+      user = await prisma.client.findUnique({ where: { id: userId } });
+      break;
+  }
 
   if (!user) {
     throw new Error('User not found');
   }
 
-  // Verify current password
   if (!user.password) {
     throw new Error('Password not set. Please use password reset.');
   }
@@ -640,16 +670,11 @@ export async function changePassword(
     throw new Error('Current password is incorrect');
   }
 
-  // Hash new password
   const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-  // Update password and set mustChangePassword to false
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      password: hashedPassword,
-      mustChangePassword: false,
-    } as any,
+  await updateUserByRole(user.id, userRole, {
+    password: hashedPassword,
+    mustChangePassword: false,
   });
 
   return {
@@ -663,25 +688,28 @@ export async function changePassword(
 // ============================================
 
 /**
- * Get user by ID
+ * Get user by ID and role
  */
-export async function getUserById(id: string) {
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      firmId: true,
-      email: true,
-      name: true,
-      role: true,
-      clientId: true,
-      phone: true,
-      isActive: true,
-      twoFactorEnabled: true,
-      mustChangePassword: true,
-      createdAt: true,
-    } as any,
-  });
+export async function getUserById(id: string, role: string) {
+  let user: any = null;
+
+  switch (role) {
+    case 'SUPER_ADMIN':
+      user = await prisma.superAdmin.findUnique({ where: { id } });
+      break;
+    case 'ADMIN':
+      user = await prisma.admin.findUnique({ where: { id } });
+      break;
+    case 'PROJECT_MANAGER':
+      user = await prisma.projectManager.findUnique({ where: { id } });
+      break;
+    case 'TEAM_MEMBER':
+      user = await prisma.teamMember.findUnique({ where: { id } });
+      break;
+    case 'CLIENT':
+      user = await prisma.client.findUnique({ where: { id } });
+      break;
+  }
 
   return user;
 }

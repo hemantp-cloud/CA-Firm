@@ -76,11 +76,15 @@ router.get('/', async (req: AuthenticatedRequest, res: Response): Promise<void> 
       return;
     }
 
-    const firmId = req.user.firmId;
+    const userContext = {
+      id: req.user.userId,
+      role: req.user.role,
+      firmId: req.user.firmId,
+    };
     const serviceId = req.query.serviceId as string | undefined;
 
-    // Call getAllTasks with firmId and optional serviceId query param
-    const tasks = await getAllTasks(firmId, serviceId);
+    // Call getAllTasks with userContext and optional serviceId query param
+    const tasks = await getAllTasks(userContext, serviceId);
 
     res.status(200).json({
       success: true,
@@ -109,10 +113,14 @@ router.get('/kanban', async (req: AuthenticatedRequest, res: Response): Promise<
       return;
     }
 
-    const firmId = req.user.firmId;
+    const userContext = {
+      id: req.user.userId,
+      role: req.user.role,
+      firmId: req.user.firmId,
+    };
 
-    // Call getTasksGroupedByStatus(firmId), return grouped data
-    const groupedTasks = await getTasksGroupedByStatus(firmId);
+    // Call getTasksGroupedByStatus(userContext), return grouped data
+    const groupedTasks = await getTasksGroupedByStatus(userContext);
 
     res.status(200).json({
       success: true,

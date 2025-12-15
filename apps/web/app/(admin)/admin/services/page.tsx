@@ -86,7 +86,7 @@ export default function ServicesPage() {
       if (dateFrom) params.append("dateFrom", dateFrom)
       if (dateTo) params.append("dateTo", dateTo)
 
-      const response = await api.get(`/services?${params.toString()}`)
+      const response = await api.get(`/admin/services?${params.toString()}`)
       if (response.data.success) {
         setServices(response.data.data)
       }

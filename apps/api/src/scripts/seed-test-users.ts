@@ -67,9 +67,9 @@ async function main() {
         },
     });
 
-    // 4. Create CA Users
-    console.log('👤 Creating CA Users...');
-    const caPassword = await bcrypt.hash('ca123', 10);
+    // 4. Create Project Manager Users
+    console.log('👤 Creating Project Manager Users...');
+    const pmPassword = await bcrypt.hash('pm123', 10);
 
     // Mr. Sharma
     const sharma = await prisma.user.create({
@@ -78,12 +78,12 @@ async function main() {
             clientId: sharmaPartner.id,
             email: 'sharma@guptaca.com',
             name: 'Mr. Sharma',
-            role: Role.CA,
-            password: caPassword,
+            role: Role.PROJECT_MANAGER,
+            password: pmPassword,
             emailVerified: true,
         },
     });
-    console.log(`✅ Created CA: ${sharma.email}`);
+    console.log(`✅ Created Project Manager: ${sharma.email}`);
 
     // Mr. Patel
     const patel = await prisma.user.create({
@@ -92,12 +92,12 @@ async function main() {
             clientId: patelPartner.id,
             email: 'patel@guptaca.com',
             name: 'Mr. Patel',
-            role: Role.CA,
-            password: caPassword,
+            role: Role.PROJECT_MANAGER,
+            password: pmPassword,
             emailVerified: true,
         },
     });
-    console.log(`✅ Created CA: ${patel.email}\n`);
+    console.log(`✅ Created Project Manager: ${patel.email}\n`);
 
     // 5. Create CLIENT Users
     console.log('👥 Creating CLIENT Users...');

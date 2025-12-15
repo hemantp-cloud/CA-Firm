@@ -22,7 +22,6 @@ const getUserContext = (req: AuthenticatedRequest) => {
     id: req.user?.userId || '',
     role: req.user?.role || '',
     firmId: req.user?.firmId || '',
-    clientId: req.user?.clientId || null,
   };
 };
 
@@ -88,30 +87,34 @@ router.post('/', authenticate, requireCA, async (req: AuthenticatedRequest, res:
     }
 
     const firmId = req.user?.firmId;
-    if (!firmId) {
+    const creatorId = req.user?.userId;
+    const creatorRole = req.user?.role;
+
+    if (!firmId || !creatorId || !creatorRole) {
       res.status(401).json({
         success: false,
-        message: 'Firm ID not found',
+        message: 'User context not found',
       });
       return;
     }
+
+    // Map userId to clientId for new schema
     const invoiceData: any = {
-      userId: validationResult.data.userId,
+      clientId: validationResult.data.userId || validationResult.data.clientId,
       invoiceDate: validationResult.data.invoiceDate,
       dueDate: validationResult.data.dueDate,
       items: validationResult.data.items,
       discount: validationResult.data.discount,
     };
-    if (validationResult.data.clientId) {
-      invoiceData.clientId = validationResult.data.clientId;
-    }
+
     if (validationResult.data.serviceId) {
       invoiceData.serviceId = validationResult.data.serviceId;
     }
     if (validationResult.data.notes) {
       invoiceData.notes = validationResult.data.notes;
     }
-    const invoice = await createInvoice(firmId, invoiceData);
+
+    const invoice = await createInvoice(firmId, creatorId, creatorRole, invoiceData);
 
     res.status(201).json({
       success: true,
@@ -238,7 +241,7 @@ router.get('/:id/pdf', authenticate, async (req: AuthenticatedRequest, res: Resp
     const pdfData = await getInvoicePDFData(req.params.id, userContext.firmId);
 
     // Generate PDF
-    const pdfBuffer = await generateInvoicePDF(pdfData);
+    const pdfBuffer = await generateInvoicePDF(pdfData as any);
 
     // Set headers for PDF download
     res.setHeader('Content-Type', 'application/pdf');

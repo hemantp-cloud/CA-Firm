@@ -7,6 +7,7 @@ interface GetActivityLogsParams {
     action?: LOG_ACTION;
     entity?: LOG_ENTITY;
     userId?: string;
+    userType?: string;
     dateFrom?: string;
     dateTo?: string;
     search?: string;
@@ -17,6 +18,7 @@ interface GetActivityLogsParams {
 
 /**
  * Get activity logs with filters and pagination
+ * Updated to work with new schema (no 'user' relation on ActivityLog)
  */
 export async function getActivityLogs(params: GetActivityLogsParams) {
   const { firmId, filters = {}, page = 1, limit = 50 } = params;
@@ -36,6 +38,10 @@ export async function getActivityLogs(params: GetActivityLogsParams) {
 
   if (filters.userId) {
     where.userId = filters.userId;
+  }
+
+  if (filters.userType) {
+    where.userType = filters.userType;
   }
 
   if (filters.dateFrom || filters.dateTo) {
@@ -60,11 +66,10 @@ export async function getActivityLogs(params: GetActivityLogsParams) {
     prisma.activityLog.findMany({
       where,
       include: {
-        user: {
+        document: {
           select: {
             id: true,
-            name: true,
-            email: true,
+            fileName: true,
           },
         },
       },
@@ -77,8 +82,14 @@ export async function getActivityLogs(params: GetActivityLogsParams) {
     prisma.activityLog.count({ where }),
   ]);
 
+  // Format logs for response
+  const formattedLogs = logs.map(log => ({
+    ...log,
+    createdAt: log.createdAt.toISOString(),
+  }));
+
   return {
-    logs,
+    logs: formattedLogs,
     pagination: {
       page,
       limit,
@@ -111,6 +122,10 @@ export async function exportActivityLogsToExcel(
     where.userId = filters.userId;
   }
 
+  if (filters?.userType) {
+    where.userType = filters.userType;
+  }
+
   if (filters?.dateFrom || filters?.dateTo) {
     where.createdAt = {};
     if (filters.dateFrom) {
@@ -123,14 +138,6 @@ export async function exportActivityLogsToExcel(
 
   const logs = await prisma.activityLog.findMany({
     where,
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-    },
     orderBy: {
       createdAt: 'desc',
     },
@@ -138,8 +145,8 @@ export async function exportActivityLogsToExcel(
 
   return logs.map((log) => ({
     'Date & Time': log.createdAt.toISOString(),
-    'User': log.user?.name || 'System',
-    'Email': log.user?.email || '-',
+    'User ID': log.userId || 'System',
+    'User Type': log.userType || '-',
     'Action': log.action,
     'Entity': log.entityType,
     'Entity ID': log.entityId || '-',
@@ -150,3 +157,30 @@ export async function exportActivityLogsToExcel(
   }));
 }
 
+/**
+ * Get recent activity for dashboard
+ */
+export async function getRecentActivity(firmId: string, limit: number = 20) {
+  const logs = await prisma.activityLog.findMany({
+    where: {
+      firmId,
+    },
+    include: {
+      document: {
+        select: {
+          id: true,
+          fileName: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    take: limit,
+  });
+
+  return logs.map(log => ({
+    ...log,
+    createdAt: log.createdAt.toISOString(),
+  }));
+}

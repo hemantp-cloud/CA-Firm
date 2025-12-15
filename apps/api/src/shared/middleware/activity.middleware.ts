@@ -11,7 +11,7 @@ export function getRequestInfo(req: Request): { ipAddress: string; userAgent: st
     (req.headers['x-real-ip'] as string) ||
     req.socket.remoteAddress ||
     'unknown';
-  
+
   const userAgent = req.headers['user-agent'] || 'unknown';
 
   return { ipAddress, userAgent };
@@ -45,9 +45,9 @@ export function logActivityMiddleware(
             userId,
             action,
             entity,
-            entityId: getEntityId ? getEntityId(req) : undefined,
-            description: getDescription ? getDescription(req) : undefined,
-            metadata: getMetadata ? getMetadata(req) : undefined,
+            entityId: getEntityId ? getEntityId(req) || null : null,
+            description: getDescription ? getDescription(req) || null : null,
+            metadata: getMetadata ? getMetadata(req) || null : null,
             ipAddress,
             userAgent,
           }).catch((err) => {
@@ -62,6 +62,7 @@ export function logActivityMiddleware(
     next();
   };
 }
+
 
 /**
  * Helper middleware to log CRUD operations

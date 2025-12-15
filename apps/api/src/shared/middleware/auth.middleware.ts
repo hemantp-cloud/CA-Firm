@@ -7,6 +7,7 @@ import prisma from '../utils/prisma';
 // ============================================
 
 export interface AuthenticatedUser {
+  id: string;
   userId: string;
   firmId: string;
   email: string;
@@ -33,7 +34,6 @@ export const authenticate = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Get Authorization header
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
@@ -44,7 +44,6 @@ export const authenticate = async (
       return;
     }
 
-    // Extract token (remove "Bearer " prefix if present)
     const token = authHeader.startsWith('Bearer ')
       ? authHeader.substring(7)
       : authHeader;
@@ -57,19 +56,44 @@ export const authenticate = async (
       return;
     }
 
-    // Verify and decode JWT token
+    // Verify JWT
     const decoded = verifyToken(token);
 
-    // Fetch user from database to get clientId and verify user still exists and is active
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        clientId: true,
-        isActive: true,
-        name: true,
-      } as any,
-    }) as any;
+    // Fetch user from appropriate table based on role
+    let user: any = null;
+
+    switch (decoded.role) {
+      case 'SUPER_ADMIN':
+        user = await prisma.superAdmin.findUnique({
+          where: { id: decoded.userId },
+          select: { id: true, isActive: true, name: true, deletedAt: true },
+        });
+        break;
+      case 'ADMIN':
+        user = await prisma.admin.findUnique({
+          where: { id: decoded.userId },
+          select: { id: true, isActive: true, name: true, deletedAt: true },
+        });
+        break;
+      case 'PROJECT_MANAGER':
+        user = await prisma.projectManager.findUnique({
+          where: { id: decoded.userId },
+          select: { id: true, isActive: true, name: true, deletedAt: true },
+        });
+        break;
+      case 'TEAM_MEMBER':
+        user = await prisma.teamMember.findUnique({
+          where: { id: decoded.userId },
+          select: { id: true, isActive: true, name: true, deletedAt: true },
+        });
+        break;
+      case 'CLIENT':
+        user = await prisma.client.findUnique({
+          where: { id: decoded.userId },
+          select: { id: true, isActive: true, name: true, deletedAt: true },
+        });
+        break;
+    }
 
     if (!user) {
       res.status(401).json({
@@ -79,7 +103,7 @@ export const authenticate = async (
       return;
     }
 
-    if (!user.isActive) {
+    if (!user.isActive || user.deletedAt) {
       res.status(403).json({
         success: false,
         message: 'User account is inactive',
@@ -87,14 +111,18 @@ export const authenticate = async (
       return;
     }
 
-    // Attach user info to request object
+    // Attach user info to request
+    // For CLIENT role, clientId is their own ID
+    const clientId = decoded.role === 'CLIENT' ? decoded.userId : null;
+
     req.user = {
+      id: decoded.userId,
       userId: decoded.userId,
       firmId: decoded.firmId,
       email: decoded.email,
       name: user.name,
       role: decoded.role,
-      clientId: user.clientId || null,
+      clientId,
     };
 
     next();
@@ -112,8 +140,7 @@ export const authenticate = async (
 // ============================================
 
 /**
- * Require ADMIN role
- * Only ADMIN (super admin) can access
+ * Require SUPER_ADMIN or ADMIN role
  */
 export const requireAdmin = (
   req: AuthenticatedRequest,
@@ -128,10 +155,10 @@ export const requireAdmin = (
     return;
   }
 
-  if (req.user.role !== 'ADMIN') {
+  if (!['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
     res.status(403).json({
       success: false,
-      message: 'Access denied. ADMIN role required.',
+      message: 'Access denied. Admin role required.',
     });
     return;
   }
@@ -140,10 +167,9 @@ export const requireAdmin = (
 };
 
 /**
- * Require CA role
- * ADMIN and CA can access
+ * Require SUPER_ADMIN only
  */
-export const requireCA = (
+export const requireSuperAdmin = (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
@@ -156,10 +182,66 @@ export const requireCA = (
     return;
   }
 
-  if (req.user.role !== 'ADMIN' && req.user.role !== 'CA') {
+  if (req.user.role !== 'SUPER_ADMIN') {
     res.status(403).json({
       success: false,
-      message: 'Access denied. ADMIN or CA role required.',
+      message: 'Access denied. Super Admin role required.',
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Require PROJECT_MANAGER role
+ * SUPER_ADMIN, ADMIN, and PROJECT_MANAGER can access
+ */
+export const requireProjectManager = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+    return;
+  }
+
+  if (!['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER'].includes(req.user.role)) {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Project Manager role required.',
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Require TEAM_MEMBER role
+ * SUPER_ADMIN, ADMIN, PROJECT_MANAGER, and TEAM_MEMBER can access
+ */
+export const requireTeamMember = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+    return;
+  }
+
+  if (!['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'TEAM_MEMBER'].includes(req.user.role)) {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Team Member role required.',
     });
     return;
   }
@@ -169,7 +251,7 @@ export const requireCA = (
 
 /**
  * Require CLIENT role
- * Any authenticated user can access (ADMIN, CA, or CLIENT)
+ * Any authenticated user can access
  */
 export const requireClient = (
   req: AuthenticatedRequest,
@@ -184,20 +266,13 @@ export const requireClient = (
     return;
   }
 
-  // Any authenticated user can access
   next();
 };
 
 /**
  * Require ownership of resource
- * Checks if user owns the resource based on userId or clientId
- * 
- * Usage:
- * requireOwnership('userId') - checks if req.params.userId matches req.user.userId
- * requireOwnership('clientId') - checks if resource belongs to user's clientId
- * requireOwnership('userId', 'id') - checks if req.params.id matches req.user.userId
  */
-export const requireOwnership = (field: 'userId' | 'clientId', paramName: string = field) => {
+export const requireOwnership = (field: 'userId', paramName: string = field) => {
   return async (
     req: AuthenticatedRequest,
     res: Response,
@@ -211,8 +286,8 @@ export const requireOwnership = (field: 'userId' | 'clientId', paramName: string
       return;
     }
 
-    // ADMIN can access everything
-    if (req.user.role === 'ADMIN') {
+    // SUPER_ADMIN and ADMIN can access everything
+    if (['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
       next();
       return;
     }
@@ -228,58 +303,10 @@ export const requireOwnership = (field: 'userId' | 'clientId', paramName: string
     }
 
     if (field === 'userId') {
-      // Check if user owns the resource
       if (req.user.userId !== resourceId) {
         res.status(403).json({
           success: false,
           message: 'Access denied. You can only access your own resources.',
-        });
-        return;
-      }
-    } else if (field === 'clientId') {
-      // Check if resource belongs to user's client
-      if (!req.user.clientId) {
-        res.status(403).json({
-          success: false,
-          message: 'Access denied. Client ID not found.',
-        });
-        return;
-      }
-
-      // For CA role, check if resource belongs to their clientId
-      // For CLIENT role, check if resource belongs to their clientId
-      // Note: This is a basic check - you may need to customize based on the resource type
-      // For example, for Services, check service.userId or service.clientId
-      // For Users, check user.clientId
-      try {
-        // Check if the resource (User) belongs to the user's clientId
-        const resource = await prisma.user.findUnique({
-          where: { id: resourceId },
-          select: {
-            clientId: true,
-          } as any,
-        }) as any;
-
-        if (!resource) {
-          res.status(404).json({
-            success: false,
-            message: 'Resource not found',
-          });
-          return;
-        }
-
-        if (resource.clientId !== req.user.clientId) {
-          res.status(403).json({
-            success: false,
-            message: 'Access denied. Resource does not belong to your client.',
-          });
-          return;
-        }
-      } catch (error) {
-        console.error('Ownership check error:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Error checking resource ownership',
         });
         return;
       }
@@ -289,17 +316,31 @@ export const requireOwnership = (field: 'userId' | 'clientId', paramName: string
   };
 };
 
-/**
- * Combined middleware: authenticate + requireAdmin
- */
+// ============================================
+// COMBINED MIDDLEWARE
+// ============================================
+
 export const requireAuthAndAdmin = [authenticate, requireAdmin];
-
-/**
- * Combined middleware: authenticate + requireCA
- */
-export const requireAuthAndCA = [authenticate, requireCA];
-
-/**
- * Combined middleware: authenticate + requireClient
- */
+export const requireAuthAndSuperAdmin = [authenticate, requireSuperAdmin];
+export const requireAuthAndProjectManager = [authenticate, requireProjectManager];
+export const requireAuthAndTeamMember = [authenticate, requireTeamMember];
 export const requireAuthAndClient = [authenticate, requireClient];
+
+// ============================================
+// BACKWARD COMPATIBILITY ALIASES
+// ============================================
+
+/**
+ * @deprecated Use requireProjectManager instead
+ */
+export const requireCA = requireProjectManager;
+
+/**
+ * @deprecated Use requireAuthAndProjectManager instead
+ */
+export const requireAuthAndCA = requireAuthAndProjectManager;
+
+/**
+ * @deprecated Use requireProjectManager instead
+ */
+export const requireAdminOrCA = requireProjectManager;

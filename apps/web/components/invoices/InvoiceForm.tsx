@@ -106,7 +106,7 @@ export default function InvoiceForm({
   const fetchClients = async () => {
     setIsLoadingClients(true)
     try {
-      const response = await api.get("/ca/clients")
+      const response = await api.get("/project-manager/clients")
       if (response.data.success) {
         setClients(response.data.data || [])
       }

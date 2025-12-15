@@ -73,7 +73,7 @@ export default function EditServicePage() {
     const fetchService = async () => {
         try {
             setIsLoading(true)
-            const response = await api.get(`/services/${serviceId}`)
+            const response = await api.get(`/admin/services/${serviceId}`)
             if (response.data.success) {
                 const service = response.data.data
                 setValue("title", service.title)

@@ -5,22 +5,22 @@ interface ServiceFilters {
   status?: ServiceStatus;
   type?: ServiceType;
   clientId?: string;
-  userId?: string;
+  projectManagerId?: string;
   dateFrom?: string;
   dateTo?: string;
 }
 
 interface UserContext {
   id: string;
-  role: string; // 'ADMIN' | 'CA' | 'CLIENT'
+  role: string; // 'ADMIN' | 'SUPER_ADMIN' | 'PROJECT_MANAGER' | 'TEAM_MEMBER' | 'CLIENT'
   firmId: string;
-  clientId: string | null;
 }
 
 /**
  * Get all services with role-based filtering
- * - ADMIN: all services in firm
- * - CA: services of their customers
+ * - ADMIN/SUPER_ADMIN: all services in firm
+ * - PROJECT_MANAGER: services of their managed clients
+ * - TEAM_MEMBER: services of assigned clients
  * - CLIENT: only their services
  */
 export async function getAllServices(userContext: UserContext, filters: ServiceFilters = {}) {
@@ -29,13 +29,21 @@ export async function getAllServices(userContext: UserContext, filters: ServiceF
   };
 
   // Role-based filtering
-  if (userContext.role === 'CA') {
-    // CA can only see services of customers under them
-    where.clientId = userContext.clientId;
+  if (userContext.role === 'PROJECT_MANAGER') {
+    // Project Manager can only see services of clients they manage
+    where.projectManagerId = userContext.id;
   } else if (userContext.role === 'CLIENT') {
     // CLIENT can only see their own services
-    where.userId = userContext.id;
+    where.clientId = userContext.id;
+  } else if (userContext.role === 'TEAM_MEMBER') {
+    // Team Member can see services of assigned clients
+    const assignments = await prisma.clientAssignment.findMany({
+      where: { teamMemberId: userContext.id },
+      select: { clientId: true },
+    });
+    where.clientId = { in: assignments.map(a => a.clientId) };
   }
+  // ADMIN and SUPER_ADMIN can see all services in the firm
 
   // Apply filters
   if (filters.status) {
@@ -50,8 +58,8 @@ export async function getAllServices(userContext: UserContext, filters: ServiceF
     where.clientId = filters.clientId;
   }
 
-  if (filters.userId) {
-    where.userId = filters.userId;
+  if (filters.projectManagerId) {
+    where.projectManagerId = filters.projectManagerId;
   }
 
   if (filters.dateFrom || filters.dateTo) {
@@ -67,17 +75,11 @@ export async function getAllServices(userContext: UserContext, filters: ServiceF
   return await prisma.service.findMany({
     where,
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       client: {
         select: {
           id: true,
           name: true,
+          email: true,
         },
       },
       tasks: {
@@ -92,6 +94,9 @@ export async function getAllServices(userContext: UserContext, filters: ServiceF
         },
       },
       documents: {
+        where: {
+          isDeleted: false,
+        },
         select: {
           id: true,
           fileName: true,
@@ -101,7 +106,7 @@ export async function getAllServices(userContext: UserContext, filters: ServiceF
           uploadedAt: 'desc',
         },
       },
-    } as any,
+    },
     orderBy: {
       createdAt: 'desc',
     },
@@ -118,26 +123,26 @@ export async function getServiceById(id: string, userContext: UserContext) {
   };
 
   // Role-based filtering
-  if (userContext.role === 'CA') {
-    where.clientId = userContext.clientId;
+  if (userContext.role === 'PROJECT_MANAGER') {
+    where.projectManagerId = userContext.id;
   } else if (userContext.role === 'CLIENT') {
-    where.userId = userContext.id;
+    where.clientId = userContext.id;
+  } else if (userContext.role === 'TEAM_MEMBER') {
+    const assignments = await prisma.clientAssignment.findMany({
+      where: { teamMemberId: userContext.id },
+      select: { clientId: true },
+    });
+    where.clientId = { in: assignments.map(a => a.clientId) };
   }
 
   const service = await prisma.service.findFirst({
     where,
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
       client: {
         select: {
           id: true,
           name: true,
+          email: true,
         },
       },
       tasks: {
@@ -146,6 +151,9 @@ export async function getServiceById(id: string, userContext: UserContext) {
         },
       },
       documents: {
+        where: {
+          isDeleted: false,
+        },
         orderBy: {
           uploadedAt: 'desc',
         },
@@ -161,76 +169,68 @@ export async function getServiceById(id: string, userContext: UserContext) {
 }
 
 /**
- * Create a new service (ADMIN only)
+ * Create a new service (ADMIN/PROJECT_MANAGER)
  */
-export async function createService(firmId: string, data: any) {
+export async function createService(firmId: string, creatorId: string, creatorRole: string, data: any) {
   const {
     clientId,
-    userId,
     type,
     title,
     description,
-    financialYear,
-    period,
     dueDate,
     feeAmount,
     notes,
   } = data;
 
-  // Verify user exists and belongs to the firm
-  const user = await prisma.user.findFirst({
+  // Verify client exists and belongs to the firm
+  const client = await prisma.client.findFirst({
     where: {
-      id: userId,
+      id: clientId,
       firmId,
-      role: 'CLIENT' as any,
+      deletedAt: null,
     },
   });
 
-  if (!user) {
-    throw new Error('User not found or invalid');
+  if (!client) {
+    throw new Error('Client not found or invalid');
   }
 
-  // If clientId provided, verify it matches user's clientId
-  const userWithClient = user as any;
-  if (clientId && userWithClient.clientId !== clientId) {
-    throw new Error('Client does not match user');
+  // Determine projectManagerId
+  let projectManagerId: string | null = null;
+
+  if (creatorRole === 'PROJECT_MANAGER') {
+    projectManagerId = creatorId;
+  } else if (client.managedBy) {
+    projectManagerId = client.managedBy;
   }
 
   return await prisma.service.create({
     data: {
       firmId,
-      userId,
-      clientId: userWithClient.clientId || clientId || null,
+      clientId,
+      projectManagerId,
       type: type as ServiceType,
       title,
       description: description || null,
-      financialYear: financialYear || null,
-      period: period || null,
       dueDate: dueDate ? new Date(dueDate) : null,
       feeAmount: feeAmount ? parseFloat(feeAmount) : null,
       notes: notes || null,
       status: 'PENDING' as ServiceStatus,
-    } as any,
+    },
     include: {
-      user: {
+      client: {
         select: {
           id: true,
           name: true,
           email: true,
         },
       },
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    } as any,
+    },
   });
 }
 
 /**
- * Update service (ADMIN only)
+ * Update service (ADMIN/PROJECT_MANAGER only)
  */
 export async function updateService(id: string, firmId: string, data: any) {
   // First verify the service exists and belongs to the firm
@@ -250,8 +250,6 @@ export async function updateService(id: string, firmId: string, data: any) {
   if (data.title !== undefined) updateData.title = data.title;
   if (data.description !== undefined) updateData.description = data.description;
   if (data.type !== undefined) updateData.type = data.type as ServiceType;
-  if (data.financialYear !== undefined) updateData.financialYear = data.financialYear;
-  if (data.period !== undefined) updateData.period = data.period;
   if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
   if (data.feeAmount !== undefined) updateData.feeAmount = data.feeAmount ? parseFloat(data.feeAmount) : null;
   if (data.notes !== undefined) updateData.notes = data.notes;
@@ -260,32 +258,27 @@ export async function updateService(id: string, firmId: string, data: any) {
     where: { id },
     data: updateData,
     include: {
-      user: {
+      client: {
         select: {
           id: true,
           name: true,
           email: true,
         },
       },
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    } as any,
+    },
   });
 }
 
 /**
- * Update only the status field of a service (ADMIN only)
+ * Update only the status field of a service (ADMIN/PM only)
  * Logs activity
  */
 export async function updateServiceStatus(
   id: string,
   firmId: string,
   status: ServiceStatus,
-  userId: string
+  userId: string,
+  userRole: string
 ) {
   // First verify the service exists and belongs to the firm
   const service = await prisma.service.findFirst({
@@ -294,7 +287,7 @@ export async function updateServiceStatus(
       firmId,
     },
     include: {
-      user: {
+      client: {
         select: {
           name: true,
         },
@@ -313,40 +306,34 @@ export async function updateServiceStatus(
       status,
     },
     include: {
-      user: {
+      client: {
         select: {
           id: true,
           name: true,
           email: true,
         },
       },
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    } as any,
+    },
   });
 
   // Log activity
   try {
-    await (prisma as any).activityLog.create({
+    await prisma.activityLog.create({
       data: {
         firmId,
         userId,
+        userType: userRole,
         action: 'SERVICE_STATUS_UPDATED',
         entityType: 'Service',
         entityId: id,
         entityName: service.title,
-        details: JSON.stringify({
+        details: {
           oldStatus: service.status,
           newStatus: status,
-        }),
+        },
       },
     });
   } catch (error) {
-    // ActivityLog might not be available yet
     console.warn('Failed to log activity:', error);
   }
 
@@ -354,7 +341,7 @@ export async function updateServiceStatus(
 }
 
 /**
- * Delete service (soft delete - ADMIN only)
+ * Delete service (soft delete - ADMIN/PM only)
  */
 export async function deleteService(id: string, firmId: string) {
   // First verify the service exists and belongs to the firm
@@ -390,21 +377,21 @@ export async function getServicesByStatus(userContext: UserContext) {
   };
 
   // Role-based filtering
-  if (userContext.role === 'CA') {
-    where.clientId = userContext.clientId;
+  if (userContext.role === 'PROJECT_MANAGER') {
+    where.projectManagerId = userContext.id;
   } else if (userContext.role === 'CLIENT') {
-    where.userId = userContext.id;
+    where.clientId = userContext.id;
+  } else if (userContext.role === 'TEAM_MEMBER') {
+    const assignments = await prisma.clientAssignment.findMany({
+      where: { teamMemberId: userContext.id },
+      select: { clientId: true },
+    });
+    where.clientId = { in: assignments.map(a => a.clientId) };
   }
 
   const services = await prisma.service.findMany({
     where,
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
       client: {
         select: {
           id: true,
@@ -433,4 +420,39 @@ export async function getServicesByStatus(userContext: UserContext) {
   });
 
   return grouped;
+}
+
+/**
+ * Get service statistics for dashboard
+ */
+export async function getServiceStats(firmId: string, userContext?: UserContext) {
+  const where: any = {
+    firmId,
+  };
+
+  // Apply role filtering if userContext provided
+  if (userContext) {
+    if (userContext.role === 'PROJECT_MANAGER') {
+      where.projectManagerId = userContext.id;
+    } else if (userContext.role === 'CLIENT') {
+      where.clientId = userContext.id;
+    }
+  }
+
+  const [pending, inProgress, underReview, completed, cancelled] = await Promise.all([
+    prisma.service.count({ where: { ...where, status: 'PENDING' } }),
+    prisma.service.count({ where: { ...where, status: 'IN_PROGRESS' } }),
+    prisma.service.count({ where: { ...where, status: 'UNDER_REVIEW' } }),
+    prisma.service.count({ where: { ...where, status: 'COMPLETED' } }),
+    prisma.service.count({ where: { ...where, status: 'CANCELLED' } }),
+  ]);
+
+  return {
+    pending,
+    inProgress,
+    underReview,
+    completed,
+    cancelled,
+    total: pending + inProgress + underReview + completed,
+  };
 }

@@ -94,7 +94,7 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response): Promi
     });
 
     // Pending tasks count
-    const pendingTasksCount = await (prisma as any).task.count({
+    const pendingTasksCount = await prisma.task.count({
       where: {
         service: {
           firmId,
@@ -175,7 +175,7 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response): Promi
     }));
 
     // Tasks by priority
-    const tasksByPriority = await (prisma as any).task.groupBy({
+    const tasksByPriority = await prisma.task.groupBy({
       by: ['priority'],
       where: {
         service: {
@@ -380,7 +380,7 @@ router.get('/services', async (req: AuthenticatedRequest, res: Response): Promis
     });
 
     // Services by service type (using 'type' field, not 'serviceTypeId')
-    const servicesByType = await (prisma as any).service.groupBy({
+    const servicesByType = await prisma.service.groupBy({
       by: ['type'],
       where: {
         firmId,
@@ -484,7 +484,7 @@ router.get('/tasks', async (req: AuthenticatedRequest, res: Response): Promise<v
     const firmId = req.user.firmId;
 
     // Tasks by status
-    const tasksByStatus = await (prisma as any).task.groupBy({
+    const tasksByStatus = await prisma.task.groupBy({
       by: ['status'],
       where: {
         service: {
@@ -497,7 +497,7 @@ router.get('/tasks', async (req: AuthenticatedRequest, res: Response): Promise<v
     });
 
     // Tasks by priority
-    const tasksByPriority = await (prisma as any).task.groupBy({
+    const tasksByPriority = await prisma.task.groupBy({
       by: ['priority'],
       where: {
         service: {
@@ -511,7 +511,7 @@ router.get('/tasks', async (req: AuthenticatedRequest, res: Response): Promise<v
 
     // Overdue tasks count
     const now = new Date();
-    const overdueTasksCount = await (prisma as any).task.count({
+    const overdueTasksCount = await prisma.task.count({
       where: {
         service: {
           firmId,
@@ -531,7 +531,7 @@ router.get('/tasks', async (req: AuthenticatedRequest, res: Response): Promise<v
     sixMonthsAgo.setDate(1);
     sixMonthsAgo.setHours(0, 0, 0, 0);
 
-    const completedTasksLast6Months = await (prisma as any).task.findMany({
+    const completedTasksLast6Months = await prisma.task.findMany({
       where: {
         service: {
           firmId,

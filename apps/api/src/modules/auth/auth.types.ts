@@ -1,4 +1,5 @@
-import { Role } from '@prisma/client';
+// Role type for the new schema (no longer an enum from Prisma)
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'PROJECT_MANAGER' | 'TEAM_MEMBER' | 'CLIENT';
 
 // ============================================
 // REQUEST TYPES
@@ -40,8 +41,7 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
-  role: Role;
-  clientId: string | null;
+  role: UserRole;
   firmId: string;
   twoFactorEnabled: boolean;
   mustChangePassword: boolean;
