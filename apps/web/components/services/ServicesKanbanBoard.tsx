@@ -20,10 +20,6 @@ interface Service {
   status: string
   dueDate: string | null
   feeAmount: number | null
-  user: {
-    id: string
-    name: string
-  }
   client: {
     id: string
     name: string

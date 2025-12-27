@@ -11,10 +11,6 @@ interface Service {
   status: string
   dueDate: string | null
   feeAmount: number | null
-  user: {
-    id: string
-    name: string
-  }
   client: {
     id: string
     name: string
@@ -41,9 +37,8 @@ export default function ServicesKanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`${color} rounded-lg p-4 min-h-[600px] flex flex-col ${
-        isOver ? "ring-2 ring-blue-500 ring-offset-2" : ""
-      }`}
+      className={`${color} rounded-lg p-4 min-h-[600px] flex flex-col ${isOver ? "ring-2 ring-blue-500 ring-offset-2" : ""
+        }`}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-4">

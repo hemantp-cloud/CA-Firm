@@ -340,6 +340,57 @@ router.post('/services', async (req: AuthenticatedRequest, res: Response): Promi
 });
 
 /**
+ * GET /api/project-manager/services/trash
+ * Get list of deleted services (trash)
+ * NOTE: This route MUST come before /services/:id to avoid "trash" being treated as an ID
+ */
+router.get('/services/trash', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const firmId = getFirmId(req);
+    const prisma = require('../../shared/utils/prisma').default;
+
+    const deletedServices = await prisma.service.findMany({
+      where: {
+        firmId,
+        deletedAt: { not: null }, // Only deleted services
+      },
+      orderBy: {
+        deletedAt: 'desc', // Most recently deleted first
+      },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        status: true,
+        deletedAt: true,
+        deletedBy: true,
+        deletedByName: true,
+        createdAt: true,
+        dueDate: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: deletedServices,
+      count: deletedServices.length,
+    });
+  } catch (error) {
+    console.error('Get trash error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch deleted services',
+    });
+  }
+});
+
+/**
  * GET /api/project-manager/services/:id
  * Get a single service by ID
  */
@@ -412,6 +463,296 @@ router.get('/services/:id', async (req: AuthenticatedRequest, res: Response): Pr
 });
 
 /**
+ * PUT /api/project-manager/services/:id
+ * Update a service by ID
+ */
+router.put('/services/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const firmId = getFirmId(req);
+    const serviceId = req.params.id;
+    const { title, description, type, financialYear, assessmentYear, period, dueDate, feeAmount, notes, requiredDocuments } = req.body;
+
+    if (!serviceId) {
+      res.status(400).json({
+        success: false,
+        message: 'Service ID is required',
+      });
+      return;
+    }
+
+    const prisma = require('../../shared/utils/prisma').default;
+
+    // Verify service exists and belongs to this firm
+    const existingService = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        firmId,
+      },
+    });
+
+    if (!existingService) {
+      res.status(404).json({
+        success: false,
+        message: 'Service not found',
+      });
+      return;
+    }
+
+    // Build update data
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description || null;
+    if (type !== undefined) updateData.type = type;
+    if (financialYear !== undefined) updateData.financialYear = financialYear || null;
+    if (assessmentYear !== undefined) updateData.assessmentYear = assessmentYear || null;
+    if (period !== undefined) updateData.period = period || null;
+    if (dueDate !== undefined) updateData.dueDate = new Date(dueDate);
+    if (feeAmount !== undefined) updateData.feeAmount = feeAmount ? parseFloat(feeAmount) : null;
+    if (notes !== undefined) updateData.internalNotes = notes || null;
+    if (requiredDocuments !== undefined) updateData.requiredDocuments = requiredDocuments;
+
+    const updatedService = await prisma.service.update({
+      where: { id: serviceId },
+      data: updateData,
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Service updated successfully',
+      data: updatedService,
+    });
+  } catch (error) {
+    console.error('Update service error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update service',
+    });
+  }
+});
+
+// ==========================================
+// RECYCLE BIN (SOFT DELETE) OPERATIONS
+// ==========================================
+
+/**
+ * DELETE /api/project-manager/services/:id
+ * Soft delete a service (move to trash)
+ * Only PENDING and CANCELLED services can be deleted
+ */
+router.delete('/services/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const firmId = getFirmId(req);
+    const projectManagerId = getProjectManagerId(req);
+    const serviceId = req.params.id;
+    const prisma = require('../../shared/utils/prisma').default;
+
+    // Fetch service
+    const service = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        firmId,
+        deletedAt: null, // Must not already be deleted
+      },
+      include: {
+        projectManager: {
+          select: { name: true }
+        }
+      }
+    });
+
+    if (!service) {
+      res.status(404).json({
+        success: false,
+        message: 'Service not found',
+      });
+      return;
+    }
+
+    // Check status - only PENDING and CANCELLED can be deleted
+    const deletableStatuses = ['PENDING', 'CANCELLED'];
+    if (!deletableStatuses.includes(service.status)) {
+      res.status(400).json({
+        success: false,
+        message: `Cannot delete service with status "${service.status}". Only PENDING or CANCELLED services can be deleted. Use "Cancel Service" action instead.`,
+      });
+      return;
+    }
+
+    // Get deleter name
+    const deleter = await prisma.projectManager.findUnique({
+      where: { id: projectManagerId },
+      select: { name: true }
+    });
+
+    // Soft delete - set deletedAt timestamp
+    await prisma.service.update({
+      where: { id: serviceId },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: projectManagerId,
+        deletedByName: deleter?.name || 'Unknown',
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Service moved to trash',
+    });
+  } catch (error) {
+    console.error('Delete service error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to delete service',
+    });
+  }
+});
+
+/**
+ * POST /api/project-manager/services/:id/restore
+ * Restore a service from trash
+ */
+router.post('/services/:id/restore', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const firmId = getFirmId(req);
+    const serviceId = req.params.id;
+    const prisma = require('../../shared/utils/prisma').default;
+
+    // Find the deleted service
+    const service = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        firmId,
+        deletedAt: { not: null }, // Must be deleted
+      },
+    });
+
+    if (!service) {
+      res.status(404).json({
+        success: false,
+        message: 'Deleted service not found',
+      });
+      return;
+    }
+
+    // Restore - clear deletedAt
+    await prisma.service.update({
+      where: { id: serviceId },
+      data: {
+        deletedAt: null,
+        deletedBy: null,
+        deletedByName: null,
+        // Reset status to PENDING if it was CANCELLED
+        status: service.status === 'CANCELLED' ? 'PENDING' : service.status,
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Service restored successfully',
+    });
+  } catch (error) {
+    console.error('Restore service error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to restore service',
+    });
+  }
+});
+
+/**
+ * DELETE /api/project-manager/services/:id/permanent
+ * Permanently delete a service (cannot be recovered)
+ */
+router.delete('/services/:id/permanent', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const firmId = getFirmId(req);
+    const serviceId = req.params.id;
+    const prisma = require('../../shared/utils/prisma').default;
+
+    // Find the deleted service (must be in trash first)
+    const service = await prisma.service.findFirst({
+      where: {
+        id: serviceId,
+        firmId,
+        deletedAt: { not: null }, // Must be in trash
+      },
+    });
+
+    if (!service) {
+      res.status(404).json({
+        success: false,
+        message: 'Service not found in trash. Only services in trash can be permanently deleted.',
+      });
+      return;
+    }
+
+    // Permanently delete
+    await prisma.service.delete({
+      where: { id: serviceId },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Service permanently deleted',
+    });
+  } catch (error) {
+    console.error('Permanent delete service error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to permanently delete service',
+    });
+  }
+});
+
+/**
+ * GET /api/project-manager/document-library
+ * Get document master list for document selection in service creation/editing
+ */
+router.get('/document-library', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const prisma = require('../../shared/utils/prisma').default;
+
+    // Fetch documents from DocumentMaster table
+    const documents = await prisma.documentMaster.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: [
+        { category: 'asc' },
+        { displayOrder: 'asc' },
+        { name: 'asc' },
+      ],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        category: true,
+        description: true,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: documents,
+    });
+  } catch (error) {
+    console.error('Get document library error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch document library',
+    });
+  }
+});
+
+/**
  * GET /api/project-manager/documents
  * Get documents for clients managed by this PM
  */
@@ -451,6 +792,63 @@ router.get('/client-documents', async (req: AuthenticatedRequest, res: Response)
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to fetch client documents',
+    });
+  }
+});
+
+// ==========================================
+// PROJECT MANAGER PEERS (for Assignment)
+// ==========================================
+
+/**
+ * GET /api/project-manager/peers
+ * Get ALL Project Managers in the firm (for service assignment)
+ * Current PM is marked with isSelf: true for UI highlighting
+ */
+router.get('/peers', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const currentPmId = getProjectManagerId(req);
+    const firmId = getFirmId(req);
+
+    const prisma = require('../../shared/utils/prisma').default;
+
+    const projectManagers = await prisma.projectManager.findMany({
+      where: {
+        firmId,
+        deletedAt: null,
+        isActive: true,
+      },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+      },
+    });
+
+    // Mark current PM with isSelf flag and move to top
+    const pmsWithSelfFlag = projectManagers.map((pm: any) => ({
+      ...pm,
+      isSelf: pm.id === currentPmId,
+    }));
+
+    // Sort: self first, then alphabetically by name
+    pmsWithSelfFlag.sort((a: any, b: any) => {
+      if (a.isSelf) return -1;
+      if (b.isSelf) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    res.status(200).json({
+      success: true,
+      data: pmsWithSelfFlag,
+    });
+  } catch (error) {
+    console.error('Get PM peers error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch project managers',
     });
   }
 });

@@ -288,6 +288,8 @@ export default function SuperAdminServiceDetailsPage() {
                             userRole={userRole}
                             isAssignee={true}
                             onActionComplete={handleActionComplete}
+                            serviceName={service.title}
+                            clientName={service.client?.name || 'Client'}
                         />
                     </div>
                 </CardContent>

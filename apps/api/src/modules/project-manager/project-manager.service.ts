@@ -322,6 +322,7 @@ export async function deleteCaCustomer(clientId: string, projectManagerId: strin
 export async function getCaServices(_projectManagerId: string, firmId: string, filters: any = {}) {
   const where: any = {
     firmId,
+    deletedAt: null, // Exclude deleted services (they appear in trash)
   };
 
   if (filters.status) {

@@ -179,8 +179,8 @@ export default function AssignClientsPage({ params }: { params: Promise<{ id: st
                                 <div
                                     key={client.id}
                                     className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-colors ${selectedClients.has(client.id)
-                                            ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
-                                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+                                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                                         }`}
                                     onClick={() => toggleClient(client.id)}
                                 >

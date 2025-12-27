@@ -218,6 +218,8 @@ export default function TeamMemberServiceDetailsPage() {
                             userRole={userRole}
                             isAssignee={true} // Team member viewing their assigned service
                             onActionComplete={handleActionComplete}
+                            serviceName={service.title}
+                            clientName={service.client?.name || 'Client'}
                         />
                     </div>
                 </CardContent>

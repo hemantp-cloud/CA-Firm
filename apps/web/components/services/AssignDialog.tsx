@@ -6,7 +6,8 @@ import {
     Loader2,
     User,
     Users,
-    Search
+    Search,
+    Star
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +40,7 @@ interface Assignee {
     name: string
     email: string
     type: 'PROJECT_MANAGER' | 'TEAM_MEMBER'
+    isSelf?: boolean
 }
 
 export default function AssignDialog({
@@ -69,26 +71,31 @@ export default function AssignDialog({
     const fetchAssignees = async () => {
         setIsLoading(true)
         try {
-            // For PM portal, fetch team members managed by this PM
-            // The current user (PM) can also assign to themselves
-            const tmRes = await api.get('/project-manager/team-members')
+            // Fetch both PMs and TMs in parallel
+            const [pmRes, tmRes] = await Promise.all([
+                api.get('/project-manager/peers'),       // New API: all PMs in firm
+                api.get('/project-manager/team-members') // Existing: all TMs in firm
+            ])
 
-            // Add current PM as an assignee option (self-assign)
-            const currentPm: Assignee = {
-                id: 'self', // Will be resolved server-side
-                name: 'Assign to myself',
-                email: '(You)',
+            // Build PM list - self is already marked and sorted first from API
+            const pms: Assignee[] = (pmRes.data.data || []).map((pm: any) => ({
+                id: pm.id,
+                name: pm.isSelf ? `${pm.name} (You)` : pm.name,
+                email: pm.email,
                 type: 'PROJECT_MANAGER' as const,
-            }
+                isSelf: pm.isSelf || false,
+            }))
 
+            // Build TM list
             const tms: Assignee[] = (tmRes.data.data || []).map((tm: any) => ({
                 id: tm.id,
                 name: tm.name,
                 email: tm.email,
                 type: 'TEAM_MEMBER' as const,
+                isSelf: false,
             }))
 
-            setAssignees([currentPm, ...tms])
+            setAssignees([...pms, ...tms])
         } catch (error) {
             console.error('Failed to fetch assignees:', error)
             toast.error('Failed to load team members')
@@ -228,13 +235,28 @@ export default function AssignDialog({
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium">
+                                            <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-medium relative ${assignee.type === 'PROJECT_MANAGER'
+                                                    ? 'bg-gradient-to-br from-blue-500 to-purple-500'
+                                                    : 'bg-gradient-to-br from-green-500 to-teal-500'
+                                                }`}>
                                                 {assignee.name.charAt(0).toUpperCase()}
+                                                {assignee.isSelf && (
+                                                    <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-0.5">
+                                                        <Star className="h-3 w-3 text-yellow-800 fill-yellow-800" />
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div>
-                                                <p className="font-medium text-gray-900 dark:text-white">
-                                                    {assignee.name}
-                                                </p>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium text-gray-900 dark:text-white">
+                                                        {assignee.name}
+                                                    </p>
+                                                    {assignee.isSelf && (
+                                                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                                                            You
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-sm text-gray-500">{assignee.email}</p>
                                             </div>
                                         </div>

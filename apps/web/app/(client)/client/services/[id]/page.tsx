@@ -31,6 +31,7 @@ import { toast } from "sonner"
 
 // Import new enhanced workflow components
 import StatusTimeline, { StatusBadge, StatusProgressBar } from "@/components/services/StatusTimeline"
+import ClientDocumentSlots from "@/components/services/ClientDocumentSlots"
 import {
   ServiceStatus,
   STATUS_CONFIG,
@@ -177,19 +178,19 @@ export default function ClientServiceDetailsPage() {
                 </p>
                 <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
                   We need some information or documents from you to continue.
-                  Please check the notes below or contact your assigned team member.
+                  Please check the required documents below.
                 </p>
-                <Button size="sm" className="mt-3 bg-orange-600 hover:bg-orange-700" asChild>
-                  <Link href={`/client/documents?serviceId=${serviceId}`}>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Documents
-                  </Link>
-                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* NEW: Document Slots - Shows required documents for upload */}
+      <ClientDocumentSlots
+        serviceId={serviceId}
+        onSlotsUpdate={() => fetchService()}
+      />
 
       {/* Status Timeline */}
       <Card className="border-0 shadow-sm">

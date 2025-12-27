@@ -139,6 +139,14 @@ export const createEnhancedServiceSchema = z.object({
     // Auto-assign options
     assignToId: z.string().uuid().optional(),
     assignToType: z.enum(['PROJECT_MANAGER', 'TEAM_MEMBER']).optional(),
+    // NEW: Required documents for slot creation
+    requiredDocuments: z.array(z.object({
+        documentMasterId: z.string().uuid().optional(),
+        name: z.string().min(1),
+        category: z.string().optional(),
+        isRequired: z.boolean().default(true),
+        isCustom: z.boolean().default(false),
+    })).optional(),
 });
 
 // ============================================

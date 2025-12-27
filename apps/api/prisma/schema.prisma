@@ -152,6 +152,16 @@ enum PaymentStatus {
   REFUNDED
 }
 
+// Document Slot Status - Tracks the lifecycle of each document requirement
+enum SlotStatus {
+  NOT_STARTED    // Slot created, no action by PM yet
+  LINKED         // PM linked an existing document from repository
+  REQUESTED      // PM requested fresh upload from client
+  UPLOADED       // Client uploaded a new document
+  APPROVED       // PM approved the uploaded/linked document
+  REJECTED       // PM rejected (client needs to re-upload)
+}
+
 // ============================================
 // CORE MODELS
 // ============================================
@@ -193,6 +203,7 @@ model Firm {
   serviceTypeMasters   ServiceTypeMaster[]
   serviceSubTypes      ServiceSubType[]
   documentRequirements DocumentRequirement[]
+  documentSlots        ServiceDocumentSlot[]  // NEW: Slot-based document tracking
 
   @@index([email])
   @@map("firms")
@@ -492,6 +503,7 @@ model Client {
   // NEW: Enhanced Service Workflow Relations
   pmAssignments   ClientPMAssignment[] // Many-to-Many with PMs
   serviceRequests ServiceRequest[] // Client-initiated requests
+  documentSlots   ServiceDocumentSlot[]  // NEW: Slot-based document tracking
 
   @@unique([firmId, email])
   @@index([firmId])
@@ -549,6 +561,25 @@ model Service {
   // Internal Notes (Not visible to client)
   internalNotes String?
 
+  // Priority/Urgency
+  priority RequestUrgency @default(NORMAL)
+
+  // Period Tracking (for quarterly/monthly services)
+  quarter String? // "Q1", "Q2", "Q3", "Q4"
+  period  String? // "2025-11" (YYYY-MM format for monthly services)
+
+  // Document Requirements for this service
+  // JSON array of selected documents:
+  // [{ documentMasterId?: string, name: string, category: string, isRequired: boolean, isCustom: boolean }]
+  requiredDocuments Json? // Documents selected during service creation
+
+  // ========== SOFT DELETE (Recycle Bin) ==========
+
+  // When deletedAt is set, the service is considered "in trash"
+  deletedAt     DateTime? // When the service was moved to trash (null = not deleted)
+  deletedBy     String?   // User ID who deleted this service
+  deletedByName String?   // Name of user who deleted (for quick display)
+
   // ========== RELATIONS ==========
 
   // Existing Relations
@@ -563,6 +594,7 @@ model Service {
   serviceRequest ServiceRequest?        @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
   assignments    ServiceAssignment[]
   statusHistory  ServiceStatusHistory[]
+  documentSlots  ServiceDocumentSlot[]  // NEW: Slot-based document tracking
 
   @@index([firmId])
   @@index([clientId])
@@ -572,7 +604,78 @@ model Service {
   @@index([dueDate])
   @@index([currentAssigneeId])
   @@index([origin])
+  @@index([deletedAt])
   @@map("services")
+}
+
+// ============================================
+// SERVICE DOCUMENT SLOT
+// ============================================
+// Tracks each document requirement for a service
+// Enables linking existing docs or requesting new uploads
+
+model ServiceDocumentSlot {
+  id        String   @id @default(uuid())
+  firmId    String
+  serviceId String
+  clientId  String   // Denormalized for quick access
+
+  // Document Identification
+  documentMasterId String?  // Reference to DocumentMaster (if from library)
+  documentName     String   // "Form 16", "PAN Card" (display name)
+  documentCode     String?  // "FORM_16", "PAN_CARD" (for matching)
+  category         String?  // "Identity", "Tax", "Financial"
+  description      String?  // Instructions for client
+
+  // Requirement Details
+  isRequired Boolean @default(true)
+  isCustom   Boolean @default(false) // true if added as custom doc
+
+  // Slot Status
+  status SlotStatus @default(NOT_STARTED)
+
+  // REQUEST Info (when PM requests from client)
+  requestedAt     DateTime?
+  requestedById   String?
+  requestedByName String?
+  deadline        DateTime?
+  requestMessage  String?  // PM's instructions to client
+  priority        String?  // "HIGH", "NORMAL", "LOW"
+
+  // LINK Info (when PM links existing repository document)
+  linkedDocumentId String?   // Points to existing Document in repository
+  linkedAt         DateTime?
+  linkedById       String?
+  linkedByName     String?
+
+  // UPLOAD Info (when client uploads FOR this slot)
+  uploadedDocumentId String?   // Points to new Document uploaded for this slot
+  uploadedAt         DateTime?
+
+  // REVIEW Info (PM reviews uploaded document)
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedByName String?
+  rejectionReason String?  // If rejected, reason for re-upload
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm             Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  service          Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  linkedDocument   Document? @relation("LinkedDocument", fields: [linkedDocumentId], references: [id], onDelete: SetNull)
+  uploadedDocument Document? @relation("UploadedDocument", fields: [uploadedDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([firmId])
+  @@index([serviceId])
+  @@index([clientId])
+  @@index([status])
+  @@index([linkedDocumentId])
+  @@index([uploadedDocumentId])
+  @@map("service_document_slots")
 }
 
 // Task
@@ -638,6 +741,10 @@ model Document {
   service        Service?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   assignedToUser TeamMember?   @relation("AssignedToTeamMember", fields: [assignedTo], references: [id], onDelete: SetNull)
   activityLogs   ActivityLog[]
+
+  // NEW: Slot relations (a document can be linked or uploaded to multiple slots)
+  linkedToSlots   ServiceDocumentSlot[] @relation("LinkedDocument")
+  uploadedToSlots ServiceDocumentSlot[] @relation("UploadedDocument")
 
   @@index([firmId])
   @@index([clientId])
@@ -1033,6 +1140,8 @@ model ServiceTypeMaster {
   code        String  // "ITR_FILING", "GST_RETURN", "TAX_AUDIT"
   name        String  // "ITR Filing"
   description String?
+  frequency   String? // "Monthly", "Quarterly", "Annual"
+  deliverables String[] @default([]) // Array of deliverables for this service
 
   // Configuration flags
   hasSubTypes           Boolean @default(false) // Does this type have sub-types?
@@ -1082,6 +1191,9 @@ model ServiceSubType {
   // Due date reference
   dueDateReference String? // "July 31", "11th of month", etc.
 
+  // Deliverables for this specific sub-type (progressive disclosure)
+  deliverables String[] @default([])
+
   // Default fee override
   defaultFee Decimal? @db.Decimal(10, 2)
 
@@ -1101,6 +1213,27 @@ model ServiceSubType {
   @@index([firmId])
   @@index([isActive])
   @@map("service_sub_types")
+}
+
+// DocumentMaster - Universal Document Library
+// Contains ALL possible documents that can be required for any service
+// This is the master list from which users select documents
+model DocumentMaster {
+  id          String  @id @default(uuid())
+  code        String  @unique // "PAN_CARD", "FORM_16", etc.
+  name        String  // "PAN Card", "Form 16", etc.
+  category    String  // "Identity", "Financial", "Tax", "Business"
+  description String? // Optional description of the document
+
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+  @@map("document_masters")
 }
 
 // DocumentRequirement - Documents required for each service type

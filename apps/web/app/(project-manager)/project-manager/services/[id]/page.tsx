@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import {
     ArrowLeft,
     Edit,
@@ -17,7 +17,10 @@ import {
     Loader2,
     Building2,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Plus,
+    List,
+    Target
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -100,7 +103,9 @@ interface Service {
 export default function PMServiceDetailsPage() {
     const params = useParams()
     const router = useRouter()
+    const searchParams = useSearchParams()
     const serviceId = params.id as string
+    const isNewlyCreated = searchParams.get('created') === 'true'
 
     const [service, setService] = useState<Service | null>(null)
     const [statusHistory, setStatusHistory] = useState<ServiceStatusHistory[]>([])
@@ -118,6 +123,18 @@ export default function PMServiceDetailsPage() {
             fetchStatusHistory()
         }
     }, [serviceId])
+
+    // Show success toast if just created
+    useEffect(() => {
+        if (isNewlyCreated) {
+            toast.success('Service created successfully!', {
+                description: 'You can now assign this service to start work.',
+                duration: 5000,
+            })
+            // Remove the query param from URL without refresh
+            window.history.replaceState({}, '', `/project-manager/services/${serviceId}`)
+        }
+    }, [isNewlyCreated, serviceId])
 
     const fetchService = async () => {
         try {
@@ -146,15 +163,34 @@ export default function PMServiceDetailsPage() {
     }
 
     const handleDelete = async () => {
-        if (!confirm("Are you sure you want to delete this service?")) return
+        if (!service) return
+
+        // Check if service can be deleted
+        const deletableStatuses = ['PENDING', 'CANCELLED']
+        if (!deletableStatuses.includes(service.status)) {
+            toast.error(`Cannot delete service with status "${service.status}". Only PENDING or CANCELLED services can be deleted.`)
+            return
+        }
+
+        if (!confirm("Are you sure you want to delete this service? It will be moved to trash.")) return
 
         try {
-            await api.delete(`/project-manager/services/${serviceId}`)
-            toast.success("Service deleted successfully")
-            router.push("/project-manager/services")
-        } catch (error) {
+            const response = await api.delete(`/project-manager/services/${serviceId}`)
+            if (response.data.success) {
+                toast.success("Service moved to trash", {
+                    description: "You can restore it from the trash if needed.",
+                    action: {
+                        label: "View Trash",
+                        onClick: () => router.push("/project-manager/services/trash"),
+                    },
+                })
+                router.push("/project-manager/services")
+            } else {
+                toast.error(response.data.message || "Failed to delete service")
+            }
+        } catch (error: any) {
             console.error("Failed to delete service:", error)
-            toast.error("Failed to delete service")
+            toast.error(error.response?.data?.message || "Failed to delete service")
         }
     }
 
@@ -236,7 +272,7 @@ export default function PMServiceDetailsPage() {
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     {canAssign && (
                         <Button onClick={openAssignDialog} className="bg-blue-600 hover:bg-blue-700">
                             <UserPlus className="h-4 w-4 mr-2" />
@@ -259,8 +295,67 @@ export default function PMServiceDetailsPage() {
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete
                     </Button>
+                    <Button variant="outline" asChild>
+                        <Link href="/project-manager/services/new">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create New
+                        </Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                        <Link href="/project-manager/services">
+                            <List className="h-4 w-4 mr-2" />
+                            View All
+                        </Link>
+                    </Button>
                 </div>
             </div>
+
+            {/* Next Step Guidance Banner - Shows based on status */}
+            {isPending && (
+                <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-l-4 border-l-blue-500">
+                    <CardContent className="py-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                                    <Target className="h-5 w-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-gray-900 dark:text-white">
+                                        🎯 Next Step: Assign This Service
+                                    </p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                        This service is waiting to be assigned. Assign it to yourself or a team member to start work.
+                                    </p>
+                                </div>
+                            </div>
+                            <Button onClick={openAssignDialog} className="bg-blue-600 hover:bg-blue-700">
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                Assign Now
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {service.status === 'ASSIGNED' && (
+                <Card className="border-0 shadow-sm bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-l-4 border-l-green-500">
+                    <CardContent className="py-4">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+                                <Target className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-900 dark:text-white">
+                                    🎯 Next Step: Start Work
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Service is assigned to {service.currentAssigneeName || 'a team member'}. Use the action buttons below to start work.
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Status Timeline */}
             <Card className="border-0 shadow-sm">
@@ -293,6 +388,8 @@ export default function PMServiceDetailsPage() {
                             userRole={userRole}
                             isAssignee={true} // PM can always perform actions
                             onActionComplete={handleActionComplete}
+                            serviceName={service.title}
+                            clientName={service.client.name}
                         />
                     </div>
                 </CardContent>

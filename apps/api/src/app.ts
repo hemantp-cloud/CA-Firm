@@ -28,6 +28,8 @@ import teamMemberDocumentsRoutes from './modules/team-member/team-member.documen
 import serviceWorkflowRoutes from './modules/service-workflow/service-workflow.routes';
 import serviceRequestRoutes from './modules/service-request/service-request.routes';
 import clientPMAssignmentRoutes from './modules/client-pm-assignment/client-pm-assignment.routes';
+import serviceConfigRoutes from './modules/service-config/service-config.routes';
+import documentSlotsRoutes from './modules/document-slots/document-slots.routes';
 
 // Configure environment variables
 dotenv.config();
@@ -51,6 +53,9 @@ app.get('/', (_req: Request, res: Response) => {
     message: 'CA Firm Management API is running',
   });
 });
+
+// Routes - Public routes first
+app.use('/api/service-config', serviceConfigRoutes); // Service configuration master data (PUBLIC, no auth)
 
 // Routes - All Core Routes Enabled
 app.use('/api/auth', authRoutes);
@@ -80,8 +85,10 @@ app.use('/api/admin', adminDocumentsRoutes);
 // Enhanced Service Workflow Routes (NEW)
 app.use('/api/service-workflow', serviceWorkflowRoutes);
 app.use('/api/service-requests', serviceRequestRoutes);
+app.use('/api/document-slots', documentSlotsRoutes); // NEW: Slot-based document management
 app.use('/api', clientPMAssignmentRoutes); // Adds routes under /api/clients/:clientId/pm-assignments and /api/project-managers/:pmId/clients
 
 export default app;
+
 
 

@@ -28,6 +28,14 @@ interface CreateServiceData {
     internalNotes?: string;
     assignToId?: string;
     assignToType?: 'PROJECT_MANAGER' | 'TEAM_MEMBER';
+    // NEW: Required documents for slot creation
+    requiredDocuments?: Array<{
+        documentMasterId?: string;
+        name: string;
+        category?: string;
+        isRequired: boolean;
+        isCustom: boolean;
+    }>;
 }
 
 // ============================================
@@ -150,6 +158,26 @@ export async function createEnhancedService(
         undefined,
         'Service created'
     );
+
+    // NEW: Create document slots from requiredDocuments
+    if (data.requiredDocuments && data.requiredDocuments.length > 0) {
+        for (const doc of data.requiredDocuments) {
+            await prisma.serviceDocumentSlot.create({
+                data: {
+                    firmId: user.firmId,
+                    serviceId: service.id,
+                    clientId,
+                    documentMasterId: doc.documentMasterId || null,
+                    documentName: doc.name,
+                    documentCode: doc.name.toUpperCase().replace(/\s+/g, '_'),
+                    category: doc.category || null,
+                    isRequired: doc.isRequired,
+                    isCustom: doc.isCustom,
+                    status: 'NOT_STARTED',
+                },
+            });
+        }
+    }
 
     // Auto-assign if specified
     if (assignToId && assignToType) {

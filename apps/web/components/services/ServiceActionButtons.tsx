@@ -33,6 +33,7 @@ import {
     ActionConfig
 } from "@/types/service-workflow"
 import * as serviceApi from "@/lib/service-workflow-api"
+import RequestDocumentsDialog from "./RequestDocumentsDialog"
 
 interface ServiceActionButtonsProps {
     serviceId: string
@@ -40,6 +41,8 @@ interface ServiceActionButtonsProps {
     userRole: string
     isAssignee: boolean
     onActionComplete: () => void
+    serviceName?: string  // NEW: for RequestDocumentsDialog
+    clientName?: string   // NEW: for RequestDocumentsDialog
 }
 
 // Icon mapping
@@ -63,17 +66,26 @@ export default function ServiceActionButtons({
     userRole,
     isAssignee,
     onActionComplete,
+    serviceName = "Service",
+    clientName = "Client",
 }: ServiceActionButtonsProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [activeAction, setActiveAction] = useState<ActionConfig | null>(null)
     const [inputValue, setInputValue] = useState("")
     const [dialogOpen, setDialogOpen] = useState(false)
+    const [requestDocsDialogOpen, setRequestDocsDialogOpen] = useState(false)  // NEW: Enhanced dialog
 
     // Filter out 'assign' and 'delegate' as they are handled by AssignDialog in the page header
     const allActions = getAvailableActions(status, userRole, isAssignee)
     const actions = allActions.filter(a => !['assign', 'delegate'].includes(a.action))
 
     const handleActionClick = (action: ActionConfig) => {
+        // NEW: Special handling for request-documents to use enhanced dialog
+        if (action.action === 'request-documents') {
+            setRequestDocsDialogOpen(true)
+            return
+        }
+
         if (action.requiresInput || action.confirmMessage) {
             setActiveAction(action)
             setInputValue("")
@@ -232,6 +244,16 @@ export default function ServiceActionButtons({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* NEW: Enhanced Request Documents Dialog */}
+            <RequestDocumentsDialog
+                serviceId={serviceId}
+                serviceName={serviceName}
+                clientName={clientName}
+                open={requestDocsDialogOpen}
+                onOpenChange={setRequestDocsDialogOpen}
+                onSuccess={onActionComplete}
+            />
         </>
     )
 }

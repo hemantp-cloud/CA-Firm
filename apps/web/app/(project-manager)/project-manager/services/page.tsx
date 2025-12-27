@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Plus, LayoutGrid, Table as TableIcon, Search, Filter, Calendar } from "lucide-react"
+import { Plus, LayoutGrid, Table as TableIcon, Search, Filter, Calendar, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -32,10 +32,6 @@ interface Service {
     status: string
     dueDate: string | null
     feeAmount: number | null
-    user: {
-        id: string
-        name: string
-    }
     client: {
         id: string
         name: string
@@ -112,7 +108,7 @@ export default function CaServicesPage() {
         const query = searchQuery.toLowerCase()
         return (
             service.title.toLowerCase().includes(query) ||
-            service.user.name.toLowerCase().includes(query)
+            (service.client?.name?.toLowerCase().includes(query) ?? false)
         )
     })
 
@@ -185,6 +181,12 @@ export default function CaServicesPage() {
                             Table
                         </Button>
                     </div>
+                    <Button variant="outline" asChild>
+                        <Link href="/project-manager/services/trash">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Trash
+                        </Link>
+                    </Button>
                     <Button asChild>
                         <Link href="/project-manager/services/new">
                             <Plus className="h-4 w-4 mr-2" />
@@ -349,7 +351,7 @@ export default function CaServicesPage() {
                                                 </Link>
                                             </TableCell>
                                             <TableCell>{formatServiceType(service.type)}</TableCell>
-                                            <TableCell>{service.user.name}</TableCell>
+                                            <TableCell>{service.client?.name || 'N/A'}</TableCell>
                                             <TableCell>
                                                 <Badge className={getStatusColor(service.status)}>
                                                     {formatStatus(service.status)}
