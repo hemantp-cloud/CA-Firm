@@ -57,6 +57,7 @@ const getUserContext = (req: AuthenticatedRequest) => {
 
 const uploadDocumentSchema = z.object({
   documentType: z.string().min(1, 'Document type is required'),
+  category: z.string().optional(),  // NEW: Document category (Identity, Financial, Tax, etc.)
   serviceId: z.string().uuid('Invalid service ID').optional(),
   description: z.string().optional(),
   userId: z.string().uuid('Invalid user ID').optional(),
@@ -78,6 +79,7 @@ router.post('/upload', upload.single('file'), async (req: AuthenticatedRequest, 
 
     const validationResult = uploadDocumentSchema.safeParse({
       documentType: req.body.documentType,
+      category: req.body.category,  // NEW: category field
       serviceId: req.body.serviceId,
       description: req.body.description,
       userId: req.body.userId,
@@ -102,12 +104,16 @@ router.post('/upload', upload.single('file'), async (req: AuthenticatedRequest, 
     }
     const uploadData: {
       documentType: string;
+      category?: string;  // NEW: category field
       serviceId?: string;
       description?: string;
       userId?: string;
     } = {
       documentType: validationResult.data.documentType,
     };
+    if (validationResult.data.category) {
+      uploadData.category = validationResult.data.category;  // NEW: pass category
+    }
     if (validationResult.data.serviceId) {
       uploadData.serviceId = validationResult.data.serviceId;
     }

@@ -12,6 +12,8 @@ import {
     ChevronRight,
     Home,
     FolderOpen,
+    Link2,
+    Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +38,10 @@ interface Document {
     uploadStatus: string
     uploadedAt: string
     documentType: string | null
+    category?: string | null  // NEW: Document category
+    isLinkedToService?: boolean  // NEW: Track if linked to a service slot
+    linkedServiceTitle?: string  // NEW: Which service it's linked to
+    uploadSource?: 'SLOT' | 'SELF'  // NEW: How the document was uploaded
     user: {
         id: string
         name: string
@@ -305,6 +311,7 @@ export default function CAClientDocumentsPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>File Name</TableHead>
+                                        <TableHead>Status</TableHead>
                                         <TableHead>Size</TableHead>
                                         <TableHead>Uploaded</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
@@ -316,8 +323,28 @@ export default function CAClientDocumentsPage() {
                                             <TableCell className="font-medium">
                                                 <div className="flex items-center gap-2">
                                                     <FileText className="h-4 w-4 text-blue-500" />
-                                                    {doc.fileName}
+                                                    <div>
+                                                        <div>{doc.fileName}</div>
+                                                        {doc.linkedServiceTitle && (
+                                                            <span className="text-xs text-muted-foreground">
+                                                                For: {doc.linkedServiceTitle}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {doc.isLinkedToService ? (
+                                                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                                        <Link2 className="h-3 w-3 mr-1" />
+                                                        Linked to Service
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                        <Upload className="h-3 w-3 mr-1" />
+                                                        Available
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell>{formatFileSize(doc.fileSize)}</TableCell>
                                             <TableCell>

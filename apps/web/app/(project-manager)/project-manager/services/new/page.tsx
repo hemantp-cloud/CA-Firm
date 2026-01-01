@@ -170,6 +170,7 @@ export default function NewServicePage() {
     const [selectedDocumentItems, setSelectedDocumentItems] = useState<SelectedDocumentItem[]>([])
     const [documentSearch, setDocumentSearch] = useState("")
     const [customDocumentName, setCustomDocumentName] = useState("")
+    const [customDocumentCategory, setCustomDocumentCategory] = useState("Other") // NEW: Category for custom document
     const [isAddingCustomDoc, setIsAddingCustomDoc] = useState(false)
     const [documentCategoryFilter, setDocumentCategoryFilter] = useState("all")
 
@@ -332,13 +333,19 @@ export default function NewServicePage() {
         setAyOptions(ayOpts)
 
         // Generate Period (Month) options (current + 12 previous months)
-        const periodOpts = Array.from({ length: 13 }, (_, i) => {
+        const periodOpts: { value: string; label: string }[] = []
+        const seenValues = new Set<string>()
+        for (let i = 0; i < 13; i++) {
             const date = new Date()
             date.setMonth(date.getMonth() - i)
             const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-            const label = date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-            return { value, label }
-        })
+            // Prevent duplicates
+            if (!seenValues.has(value)) {
+                seenValues.add(value)
+                const label = date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+                periodOpts.push({ value, label })
+            }
+        }
         setPeriodOptions(periodOpts)
     }, []) // Empty deps - run once on mount
 
@@ -932,11 +939,12 @@ export default function NewServicePage() {
         setSelectedDocumentItems(prev => [...prev, {
             documentMasterId: undefined,
             name: customDocumentName.trim(),
-            category: 'Custom',
+            category: customDocumentCategory, // Use selected category instead of 'Custom'
             isRequired: false,
             isCustom: true,
         }])
         setCustomDocumentName("")
+        setCustomDocumentCategory("Other") // Reset to default
         setIsAddingCustomDoc(false)
     }
 
@@ -2381,33 +2389,64 @@ export default function NewServicePage() {
 
                                         {/* Add Custom Document Input */}
                                         {isAddingCustomDoc ? (
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    placeholder="Enter custom document name..."
-                                                    value={customDocumentName}
-                                                    onChange={(e) => setCustomDocumentName(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') {
-                                                            e.preventDefault()
-                                                            addCustomDocument()
-                                                        }
-                                                    }}
-                                                    autoFocus
-                                                />
-                                                <Button type="button" onClick={addCustomDocument} size="sm">
-                                                    Add
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setIsAddingCustomDoc(false)
-                                                        setCustomDocumentName("")
-                                                    }}
-                                                >
-                                                    Cancel
-                                                </Button>
+                                            <div className="space-y-3 p-3 border rounded-lg bg-slate-50 dark:bg-slate-800">
+                                                <div className="flex gap-2 items-center">
+                                                    <Input
+                                                        placeholder="Enter custom document name..."
+                                                        value={customDocumentName}
+                                                        onChange={(e) => setCustomDocumentName(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault()
+                                                                addCustomDocument()
+                                                            }
+                                                        }}
+                                                        autoFocus
+                                                        className="flex-1"
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2 items-center">
+                                                    <Label className="text-xs text-slate-600 whitespace-nowrap">Category:</Label>
+                                                    <Select
+                                                        value={customDocumentCategory}
+                                                        onValueChange={setCustomDocumentCategory}
+                                                    >
+                                                        <SelectTrigger className="flex-1 h-8">
+                                                            <SelectValue placeholder="Select category..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="Identity">Identity</SelectItem>
+                                                            <SelectItem value="Financial">Financial</SelectItem>
+                                                            <SelectItem value="Tax">Tax</SelectItem>
+                                                            <SelectItem value="GST">GST</SelectItem>
+                                                            <SelectItem value="Business">Business</SelectItem>
+                                                            <SelectItem value="Capital Gains">Capital Gains</SelectItem>
+                                                            <SelectItem value="Professional">Professional</SelectItem>
+                                                            <SelectItem value="Address Proof">Address Proof</SelectItem>
+                                                            <SelectItem value="Foreign/NRI">Foreign/NRI</SelectItem>
+                                                            <SelectItem value="Payroll">Payroll</SelectItem>
+                                                            <SelectItem value="Import/Export">Import/Export</SelectItem>
+                                                            <SelectItem value="Other">Other</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="flex gap-2 justify-end">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setIsAddingCustomDoc(false)
+                                                            setCustomDocumentName("")
+                                                            setCustomDocumentCategory("Other")
+                                                        }}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button type="button" onClick={addCustomDocument} size="sm">
+                                                        Add Document
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ) : (
                                             <Button

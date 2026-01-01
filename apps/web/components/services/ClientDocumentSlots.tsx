@@ -12,7 +12,8 @@ import {
     Loader2,
     Calendar,
     File,
-    Eye
+    Eye,
+    RefreshCw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -65,6 +66,14 @@ export default function ClientDocumentSlots({
     const [slots, setSlots] = useState<DocumentSlot[]>([])
     const [uploadSlotId, setUploadSlotId] = useState<string | null>(null)
     const [uploadSlotName, setUploadSlotName] = useState<string>("")
+    const [uploadSlotCategory, setUploadSlotCategory] = useState<string | null>(null)
+    // NEW: Track existing document for replace confirmation
+    const [existingDocument, setExistingDocument] = useState<{
+        id: string
+        fileName: string
+        uploadedAt: string
+    } | null>(null)
+    const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
 
     useEffect(() => {
         if (serviceId) {
@@ -87,17 +96,48 @@ export default function ClientDocumentSlots({
         }
     }
 
+    // NEW: Function to initiate upload with replace check
+    const initiateUpload = (slot: DocumentSlot) => {
+        setUploadSlotId(slot.id)
+        setUploadSlotName(slot.documentName)
+        setUploadSlotCategory(slot.category)
+
+        // Check if slot already has a document (UPLOADED or REJECTED status)
+        const hasExistingDoc = slot.uploadedDocument || slot.linkedDocument
+        if (hasExistingDoc && (slot.status === 'UPLOADED' || slot.status === 'REJECTED')) {
+            const doc = slot.uploadedDocument || slot.linkedDocument!
+            setExistingDocument({
+                id: doc.id,
+                fileName: doc.fileName,
+                uploadedAt: doc.uploadedAt
+            })
+            setShowReplaceConfirm(true)
+        } else {
+            setExistingDocument(null)
+            setShowReplaceConfirm(false)
+        }
+    }
+
+    // NEW: Confirm replacement and proceed with upload
+    const confirmReplacement = () => {
+        setShowReplaceConfirm(false)
+        // Keep uploadSlotId set so the upload dialog opens
+    }
+
     const handleUploadSuccess = async (document: any) => {
         // Link the uploaded document to the slot
         if (uploadSlotId) {
             try {
                 const response = await api.post(`/document-slots/client/slots/${uploadSlotId}/upload`, {
-                    documentId: document.id
+                    documentId: document.id,
+                    replaceExisting: !!existingDocument  // NEW: Flag to indicate replacement
                 })
 
                 if (response.data.success) {
-                    toast.success("Document uploaded successfully!")
+                    toast.success(existingDocument ? "Document replaced successfully!" : "Document uploaded successfully!")
                     setUploadSlotId(null)
+                    setExistingDocument(null)
+                    setShowReplaceConfirm(false)
                     loadSlots()
                     onSlotsUpdate?.()
                 }
@@ -219,8 +259,8 @@ export default function ClientDocumentSlots({
                                         <div
                                             key={slot.id}
                                             className={`p-4 rounded-lg border-2 ${isRejected
-                                                    ? 'border-red-300 bg-red-50 dark:bg-red-900/20'
-                                                    : 'border-orange-200 bg-orange-50 dark:bg-orange-900/20'
+                                                ? 'border-red-300 bg-red-50 dark:bg-red-900/20'
+                                                : 'border-orange-200 bg-orange-50 dark:bg-orange-900/20'
                                                 }`}
                                         >
                                             <div className="flex items-start justify-between">
@@ -256,10 +296,7 @@ export default function ClientDocumentSlots({
                                                 <Button
                                                     size="sm"
                                                     className="bg-violet-600 hover:bg-violet-700"
-                                                    onClick={() => {
-                                                        setUploadSlotId(slot.id)
-                                                        setUploadSlotName(slot.documentName)
-                                                    }}
+                                                    onClick={() => initiateUpload(slot)}
                                                 >
                                                     <Upload className="h-4 w-4 mr-1" />
                                                     {isRejected ? 'Re-upload' : 'Upload'}
@@ -358,16 +395,89 @@ export default function ClientDocumentSlots({
                 </CardContent>
             </Card>
 
-            {/* Upload Dialog */}
-            <Dialog open={!!uploadSlotId} onOpenChange={(open) => !open && setUploadSlotId(null)}>
+            {/* Replace Confirmation Dialog */}
+            <Dialog open={showReplaceConfirm} onOpenChange={setShowReplaceConfirm}>
+                <DialogContent className="sm:max-w-[450px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-orange-600">
+                            <RefreshCw className="h-5 w-5" />
+                            Replace Existing Document?
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-muted-foreground mb-4">
+                            A document has already been uploaded for <strong>{uploadSlotName}</strong>.
+                            Do you want to replace it with a new version?
+                        </p>
+
+                        {existingDocument && (
+                            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200">
+                                <div className="flex items-center gap-2">
+                                    <File className="h-5 w-5 text-amber-600" />
+                                    <div>
+                                        <p className="font-medium text-sm">{existingDocument.fileName}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Uploaded on {formatDate(existingDocument.uploadedAt)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <p className="text-xs text-muted-foreground mt-4">
+                            The previous version will be kept in history for reference.
+                        </p>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowReplaceConfirm(false)
+                                setUploadSlotId(null)
+                                setExistingDocument(null)
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-orange-600 hover:bg-orange-700"
+                            onClick={confirmReplacement}
+                        >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Replace with New Version
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Upload Dialog (only when not showing replace confirm) */}
+            <Dialog open={!!uploadSlotId && !showReplaceConfirm} onOpenChange={(open) => {
+                if (!open) {
+                    setUploadSlotId(null)
+                    setExistingDocument(null)
+                }
+            }}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Upload: {uploadSlotName}</DialogTitle>
+                        <DialogTitle>
+                            {existingDocument ? 'Replace: ' : 'Upload: '}{uploadSlotName}
+                        </DialogTitle>
+                        {uploadSlotCategory && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Category: {uploadSlotCategory}
+                            </p>
+                        )}
+                        {existingDocument && (
+                            <p className="text-sm text-orange-600 mt-1">
+                                Replacing: {existingDocument.fileName}
+                            </p>
+                        )}
                     </DialogHeader>
                     <DocumentUpload
                         onUploadSuccess={handleUploadSuccess}
                         serviceId={serviceId}
-                        documentType={uploadSlotName}
+                        documentType={uploadSlotName.toUpperCase().replace(/\s+/g, '_')}
+                        category={uploadSlotCategory || undefined}
                     />
                 </DialogContent>
             </Dialog>

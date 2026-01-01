@@ -39,32 +39,48 @@ router.get('/documents/hierarchy', authenticate, requireClient, async (req: Auth
             orderBy: { uploadedAt: 'desc' },
         });
 
-        // Group documents by document type
-        const typeMap: { [key: string]: any[] } = {};
+        // NEW: Group documents by Category first, then by Document Type
+        // Structure: { category: { documentType: [documents] } }
+        const categoryMap: { [category: string]: { [type: string]: any[] } } = {};
+
         documents.forEach((doc: any) => {
+            const category = doc.category || 'Uncategorized';
             const type = doc.documentType || 'OTHER';
-            if (!typeMap[type]) typeMap[type] = [];
-            typeMap[type].push({
+
+            if (!categoryMap[category]) {
+                categoryMap[category] = {};
+            }
+            if (!categoryMap[category][type]) {
+                categoryMap[category][type] = [];
+            }
+            categoryMap[category][type].push({
                 ...doc,
                 fileSize: doc.fileSize?.toString() || '0',
             });
         });
 
-        const documentTypes = Object.entries(typeMap).map(([type, docs]) => ({
-            type,
-            count: docs.length,
-            documents: docs,
+        // Convert to array structure for frontend
+        const categories = Object.entries(categoryMap).map(([category, types]) => ({
+            category,
+            documentTypes: Object.entries(types).map(([type, docs]) => ({
+                type,
+                count: docs.length,
+                documents: docs,
+            })),
+            totalFiles: Object.values(types).reduce((sum, docs) => sum + docs.length, 0),
         }));
 
         // Build response structure
         const response = {
             myDocuments: {
                 title: 'My Documents',
+                categories,  // NEW: Include category-based grouping
                 users: documents.length > 0 ? [{
                     userId: clientId,
                     userName: clientInfo?.name || 'My Account',
                     userEmail: clientInfo?.email || req.user?.email || '',
-                    documentTypes,
+                    // Keep documentTypes for backward compatibility
+                    documentTypes: categories.flatMap(c => c.documentTypes),
                 }] : [],
                 totalFiles: documents.length,
             },
@@ -304,7 +320,7 @@ router.post('/documents/upload', authenticate, requireClient, upload.single('fil
             return;
         }
 
-        const { documentType, description } = req.body;
+        const { documentType, category, description, customName } = req.body;  // NEW: also extract category and customName
 
         // Save file to storage in client-specific folder
         await ensureUploadDirectories();
@@ -314,6 +330,11 @@ router.post('/documents/upload', authenticate, requireClient, upload.single('fil
         const filename = `${Date.now()}-${req.file.originalname}`;
         const storagePath = path.join(uploadDir, filename);
         await fs.writeFile(storagePath, req.file.buffer);
+
+        // For OTHER documents, store customName in description for auto-matching
+        const documentDescription = documentType === 'OTHER' && customName
+            ? customName
+            : (description || null);
 
         // Create document record
         const document = await prisma.document.create({
@@ -327,7 +348,8 @@ router.post('/documents/upload', authenticate, requireClient, upload.single('fil
                 fileSize: BigInt(req.file.size),
                 storagePath,
                 documentType: documentType || 'OTHER',
-                description: description || null,
+                category: category || null,  // NEW: Save category
+                description: documentDescription,  // Store customName for OTHER types
                 status: 'PENDING',
             },
         });

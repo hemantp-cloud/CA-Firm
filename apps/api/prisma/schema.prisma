@@ -717,7 +717,8 @@ model Document {
   fileSize       BigInt // Size in bytes
   storagePath    String // Path to file in storage
   folderPath     String? // Organized folder path
-  documentType   DocumentType?
+  documentType   String?        // Changed from DocumentType enum to String for dynamic document types
+  category       String?        // NEW: Document category (Identity, Financial, Tax, GST, Business, etc.)
   description    String?
   version        Int            @default(1)
   status         DocumentStatus @default(PENDING)
@@ -1219,11 +1220,12 @@ model ServiceSubType {
 // Contains ALL possible documents that can be required for any service
 // This is the master list from which users select documents
 model DocumentMaster {
-  id          String  @id @default(uuid())
-  code        String  @unique // "PAN_CARD", "FORM_16", etc.
-  name        String  // "PAN Card", "Form 16", etc.
-  category    String  // "Identity", "Financial", "Tax", "Business"
-  description String? // Optional description of the document
+  id          String   @id @default(uuid())
+  code        String   @unique // "PAN_CARD", "FORM_16", etc.
+  name        String   // "PAN Card", "Form 16", etc.
+  category    String   // "Identity", "Financial", "Tax", "Business"
+  purposes    String[] @default([]) // Multiple purposes this document can serve (e.g., ["Identity", "Address Proof", "KYC"])
+  description String?  // Optional description of the document
 
   displayOrder Int     @default(0)
   isActive     Boolean @default(true)

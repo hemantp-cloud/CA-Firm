@@ -266,7 +266,7 @@ router.post('/services', async (req: AuthenticatedRequest, res: Response): Promi
     const projectManagerId = getProjectManagerId(req);
     const firmId = getFirmId(req);
     const pmName = req.user?.name || 'Project Manager';
-    const { userId, type, title, description, financialYear, assessmentYear, dueDate, feeAmount, internalNotes } = req.body;
+    const { userId, type, title, description, financialYear, assessmentYear, dueDate, feeAmount, internalNotes, requiredDocuments } = req.body;
 
     if (!userId || !type || !title || !dueDate) {
       res.status(400).json({
@@ -324,6 +324,18 @@ router.post('/services', async (req: AuthenticatedRequest, res: Response): Promi
         },
       },
     });
+
+    // Create document slots from the selected documents
+    if (requiredDocuments && Array.isArray(requiredDocuments) && requiredDocuments.length > 0) {
+      const slotService = require('../document-slots/document-slots.service');
+      await slotService.createSlotsFromRequirements(
+        service.id,
+        firmId,
+        userId,
+        requiredDocuments
+      );
+      console.log(`Created ${requiredDocuments.length} document slots for service ${service.id}`);
+    }
 
     res.status(201).json({
       success: true,
@@ -735,6 +747,7 @@ router.get('/document-library', async (_req: AuthenticatedRequest, res: Response
         code: true,
         name: true,
         category: true,
+        purposes: true,
         description: true,
       },
     });
@@ -748,6 +761,191 @@ router.get('/document-library', async (_req: AuthenticatedRequest, res: Response
     res.status(500).json({
       success: false,
       message: error instanceof Error ? error.message : 'Failed to fetch document library',
+    });
+  }
+});
+
+/**
+ * GET /api/project-manager/document-master
+ * Get all document types with purposes for configuration by PM
+ */
+router.get('/document-master', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const prisma = require('../../shared/utils/prisma').default;
+
+    const documents = await prisma.documentMaster.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: [
+        { category: 'asc' },
+        { displayOrder: 'asc' },
+        { name: 'asc' },
+      ],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        category: true,
+        purposes: true,
+        description: true,
+        isActive: true,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: documents,
+    });
+  } catch (error) {
+    console.error('Get document master error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch document master',
+    });
+  }
+});
+
+/**
+ * PUT /api/project-manager/document-master/:id
+ * Update purposes for a document type (PM configuration)
+ */
+router.put('/document-master/:id', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const prisma = require('../../shared/utils/prisma').default;
+    const { id } = req.params;
+    const { purposes } = req.body;
+
+    if (!Array.isArray(purposes)) {
+      res.status(400).json({
+        success: false,
+        message: 'Purposes must be an array of strings',
+      });
+      return;
+    }
+
+    // Validate that all purposes are strings
+    if (!purposes.every((p: any) => typeof p === 'string')) {
+      res.status(400).json({
+        success: false,
+        message: 'All purposes must be strings',
+      });
+      return;
+    }
+
+    const updated = await prisma.documentMaster.update({
+      where: { id },
+      data: { purposes },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        category: true,
+        purposes: true,
+        description: true,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: updated,
+      message: 'Document purposes updated successfully',
+    });
+  } catch (error) {
+    console.error('Update document master error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to update document master',
+    });
+  }
+});
+
+/**
+ * GET /api/project-manager/available-purposes
+ * Get list of all available purpose options for document configuration
+ */
+router.get('/available-purposes', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    // Predefined list of common purposes
+    const availablePurposes = [
+      // Identity Related
+      'Identity',
+      'Photo ID',
+      'Age Proof',
+      'DOB Proof',
+      'Name Proof',
+      'KYC',
+
+      // Address Related
+      'Address Proof',
+      'Residence Proof',
+      'Office Proof',
+
+      // Financial Related
+      'Financial',
+      'Income Proof',
+      'Bank Proof',
+      'Transaction Proof',
+      'Investment',
+      'Loan',
+      'Property',
+      'Ownership Proof',
+
+      // Tax Related
+      'Tax',
+      'TDS',
+      'Tax Credit',
+      'Deduction Proof',
+      'Filing Proof',
+
+      // Business Related
+      'Business',
+      'Corporate',
+      'License',
+      'Registration Proof',
+      'Legal',
+      'Compliance',
+      'Audit',
+
+      // Employment Related
+      'Employment Proof',
+      'Payroll',
+
+      // GST Related
+      'GST',
+      'ITC',
+
+      // Capital Gains
+      'Capital Gains',
+
+      // Import/Export
+      'Import/Export',
+      'Export',
+      'Import',
+      'Customs',
+
+      // Foreign/NRI
+      'Foreign/NRI',
+      'Remittance',
+      'Travel',
+
+      // Other
+      'Other',
+      'Miscellaneous',
+      'Authorization',
+      'Declaration',
+      'Verification',
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: availablePurposes,
+    });
+  } catch (error) {
+    console.error('Get available purposes error:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to fetch available purposes',
     });
   }
 });

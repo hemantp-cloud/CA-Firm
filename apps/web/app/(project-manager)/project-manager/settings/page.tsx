@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { Save, User, Lock, Bell, Loader2, Eye, EyeOff, CheckCircle } from "lucide-react"
+import { Save, User, Lock, Bell, Loader2, Eye, EyeOff, CheckCircle, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import api from "@/lib/api"
+import DocumentMasterConfig from "@/components/settings/DocumentMasterConfig"
 
 export default function SettingsPage() {
     const { data: session, update: updateSession } = useSession()
@@ -231,6 +232,16 @@ export default function SettingsPage() {
                     >
                         <Bell className="h-4 w-4" />
                         Notifications
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("document-master")}
+                        className={`${activeTab === "document-master"
+                            ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    >
+                        <FileText className="h-4 w-4" />
+                        Document Master
                     </button>
                 </nav>
             </div>
@@ -492,6 +503,11 @@ export default function SettingsPage() {
                         </div>
                     </CardContent>
                 </Card>
+            )}
+
+            {/* Document Master Tab */}
+            {activeTab === "document-master" && (
+                <DocumentMasterConfig />
             )}
         </div>
     )

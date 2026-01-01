@@ -19,7 +19,8 @@ import api from "@/lib/api"
 interface DocumentUploadProps {
   onUploadSuccess?: (document: any) => void
   serviceId?: string
-  documentType?: string
+  documentType?: string    // For slot-based upload: auto-set from slot
+  category?: string        // NEW: For slot-based upload: auto-set from slot
   className?: string
 }
 
@@ -40,10 +41,12 @@ export default function DocumentUpload({
   onUploadSuccess,
   serviceId,
   documentType: defaultDocumentType,
+  category: defaultCategory,   // NEW: category from slot
   className,
 }: DocumentUploadProps) {
   const [file, setFile] = useState<File | null>(null)
   const [documentType, setDocumentType] = useState<string>(defaultDocumentType || "")
+  const [category, setCategory] = useState<string>(defaultCategory || "")  // NEW: category state
   const [description, setDescription] = useState<string>("")
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -133,6 +136,7 @@ export default function DocumentUpload({
       const formData = new FormData()
       formData.append("file", file)
       formData.append("documentType", documentType)
+      if (category) formData.append("category", category)  // NEW: Send category
       if (serviceId) formData.append("serviceId", serviceId)
       if (description) formData.append("description", description)
 
@@ -180,11 +184,10 @@ export default function DocumentUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`border-2 border-dashed transition-colors ${
-          isDragging
-            ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
-            : "border-gray-300 dark:border-gray-700"
-        }`}
+        className={`border-2 border-dashed transition-colors ${isDragging
+          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
+          : "border-gray-300 dark:border-gray-700"
+          }`}
       >
         <CardContent className="p-6">
           {!file ? (
@@ -247,32 +250,57 @@ export default function DocumentUpload({
                 </Button>
               </div>
 
+              {/* Category - Show as read-only when provided from slot */}
+              {defaultCategory && (
+                <div>
+                  <Label>
+                    Category <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="px-3 py-2 rounded-md border bg-violet-50 dark:bg-violet-900/30 text-sm flex-1 font-medium text-violet-700 dark:text-violet-300">
+                      {defaultCategory}
+                    </div>
+                    <span className="text-xs text-gray-500">(auto-set)</span>
+                  </div>
+                </div>
+              )}
+
               {/* Document Type */}
               <div>
                 <Label htmlFor="documentType">
                   Document Type <span className="text-red-500">*</span>
                 </Label>
-                <Select value={documentType} onValueChange={setDocumentType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select document type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PAN_CARD">PAN Card</SelectItem>
-                    <SelectItem value="AADHAR_CARD">Aadhar Card</SelectItem>
-                    <SelectItem value="BANK_STATEMENT">Bank Statement</SelectItem>
-                    <SelectItem value="FORM_16">Form 16</SelectItem>
-                    <SelectItem value="FORM_26AS">Form 26AS</SelectItem>
-                    <SelectItem value="GST_CERTIFICATE">GST Certificate</SelectItem>
-                    <SelectItem value="INCORPORATION_CERTIFICATE">Incorporation Certificate</SelectItem>
-                    <SelectItem value="PARTNERSHIP_DEED">Partnership Deed</SelectItem>
-                    <SelectItem value="MOA_AOA">MOA & AOA</SelectItem>
-                    <SelectItem value="AUDIT_REPORT">Audit Report</SelectItem>
-                    <SelectItem value="BALANCE_SHEET">Balance Sheet</SelectItem>
-                    <SelectItem value="PROFIT_LOSS">Profit & Loss</SelectItem>
-                    <SelectItem value="TAX_RETURN">Tax Return</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* If document type is passed from slot, show as read-only */}
+                {defaultDocumentType ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="px-3 py-2 rounded-md border bg-gray-100 dark:bg-gray-800 text-sm flex-1">
+                      {defaultDocumentType.replace(/_/g, ' ')}
+                    </div>
+                    <span className="text-xs text-gray-500">(auto-set)</span>
+                  </div>
+                ) : (
+                  <Select value={documentType} onValueChange={setDocumentType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select document type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PAN_CARD">PAN Card</SelectItem>
+                      <SelectItem value="AADHAR_CARD">Aadhar Card</SelectItem>
+                      <SelectItem value="BANK_STATEMENT">Bank Statement</SelectItem>
+                      <SelectItem value="FORM_16">Form 16</SelectItem>
+                      <SelectItem value="FORM_26AS">Form 26AS</SelectItem>
+                      <SelectItem value="GST_CERTIFICATE">GST Certificate</SelectItem>
+                      <SelectItem value="INCORPORATION_CERTIFICATE">Incorporation Certificate</SelectItem>
+                      <SelectItem value="PARTNERSHIP_DEED">Partnership Deed</SelectItem>
+                      <SelectItem value="MOA_AOA">MOA &amp; AOA</SelectItem>
+                      <SelectItem value="AUDIT_REPORT">Audit Report</SelectItem>
+                      <SelectItem value="BALANCE_SHEET">Balance Sheet</SelectItem>
+                      <SelectItem value="PROFIT_LOSS">Profit &amp; Loss</SelectItem>
+                      <SelectItem value="TAX_RETURN">Tax Return</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Description */}

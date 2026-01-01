@@ -338,8 +338,29 @@ export async function uploadToSlot(
         ['LINKED', 'UPLOADED', 'APPROVED'].includes(s.status)
     );
 
-    // If all required docs uploaded, service can potentially resume
-    // But we don't auto-change status - PM needs to review
+    // AUTO-RESUME: If all required docs are fulfilled and service is WAITING_FOR_CLIENT,
+    // automatically resume the workflow to IN_PROGRESS
+    if (allFulfilled && slot.service.status === 'WAITING_FOR_CLIENT') {
+        await prisma.service.update({
+            where: { id: slot.serviceId },
+            data: { status: 'IN_PROGRESS' },
+        });
+
+        // Log status change
+        await prisma.serviceStatusHistory.create({
+            data: {
+                firmId: slot.firmId,
+                serviceId: slot.serviceId,
+                fromStatus: 'WAITING_FOR_CLIENT',
+                toStatus: 'IN_PROGRESS',
+                action: 'AUTO_RESUME',
+                changedBy: user.id,
+                changedByType: 'CLIENT',
+                changedByName: user.name,
+                notes: `All required documents have been uploaded. Service automatically resumed.`,
+            },
+        });
+    }
 
     return updatedSlot;
 }
@@ -527,5 +548,100 @@ export async function checkAllRequiredApproved(serviceId: string) {
         rejected,
         allApproved: approved === total && total > 0,
         readyForReview: uploaded > 0,
+    };
+}
+
+// ============================================
+// GET DOCUMENT MASTER LIBRARY BY CATEGORY
+// ============================================
+
+/**
+ * Get all documents from DocumentMaster grouped by category
+ * Used for two-step category -> document selection in client upload
+ */
+export async function getDocumentMasterLibrary() {
+    const documents = await prisma.documentMaster.findMany({
+        where: { isActive: true },
+        orderBy: [
+            { category: 'asc' },
+            { displayOrder: 'asc' },
+        ],
+        select: {
+            id: true,
+            code: true,
+            name: true,
+            category: true,
+            description: true,
+        },
+    });
+
+    // Group by category
+    const categoryMap = new Map<string, Array<{ id: string; code: string; name: string; description: string | null }>>();
+
+    for (const doc of documents) {
+        const category = doc.category || 'Other';
+        if (!categoryMap.has(category)) {
+            categoryMap.set(category, []);
+        }
+        categoryMap.get(category)!.push({
+            id: doc.id,
+            code: doc.code,
+            name: doc.name,
+            description: doc.description,
+        });
+    }
+
+    // Convert to array format
+    const categories = Array.from(categoryMap.entries()).map(([category, docs]) => ({
+        category,
+        documents: docs,
+    }));
+
+    // Define category order
+    const categoryOrder = [
+        'Identity',
+        'Financial',
+        'Tax',
+        'GST',
+        'Business',
+        'Capital Gains',
+        'Professional',
+        'Address Proof',
+        'Foreign/NRI',
+        'Payroll',
+        'Import/Export',
+        'Other',
+    ];
+
+    // Sort categories in defined order
+    categories.sort((a, b) => {
+        const aIndex = categoryOrder.indexOf(a.category);
+        const bIndex = categoryOrder.indexOf(b.category);
+        if (aIndex === -1 && bIndex === -1) return a.category.localeCompare(b.category);
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+    });
+
+    return categories;
+}
+
+/**
+ * Get category hints for UI display
+ */
+export function getCategoryHints(): Record<string, string> {
+    return {
+        'Identity': 'PAN Card, Aadhaar, Passport, Voter ID, DSC...',
+        'Financial': 'Bank Statements, Balance Sheet, P&L, Loan Documents...',
+        'Tax': 'Form 16, Form 26AS, AIS/TIS, ITR, TDS Certificates...',
+        'GST': 'GSTR Returns, GSTIN Certificate, Sales/Purchase Register...',
+        'Business': 'Incorporation Certificate, MOA/AOA, Partnership Deed, FSSAI...',
+        'Capital Gains': 'Demat Statement, MF Statement, Property Deeds...',
+        'Professional': 'Fee Receipts, Client Contracts, Invoices...',
+        'Address Proof': 'Electricity Bill, NOC from Landlord, Property Deed...',
+        'Foreign/NRI': 'Foreign Income Docs, FEMA, NRO/NRE Statements...',
+        'Payroll': 'Salary Register, PF/ESI Challans, Employee Details...',
+        'Import/Export': 'IEC Certificate, Shipping Bill, Bill of Entry...',
+        'Other': 'Power of Attorney, Affidavit, Other Documents...',
     };
 }

@@ -103,20 +103,35 @@ export default function RequestDocumentsDialog({
         }
     }, [open, serviceId])
 
+    // State for document library with purposes
+    const [documentLibrary, setDocumentLibrary] = useState<Array<{
+        code: string
+        name: string
+        category: string
+        purposes: string[]
+    }>>([])
+
     const loadData = async () => {
         setLoading(true)
         try {
-            const [slotsRes, docsRes] = await Promise.all([
+            const [slotsRes, docsRes, libraryRes] = await Promise.all([
                 api.get(`/document-slots/services/${serviceId}/slots`),
-                api.get(`/document-slots/services/${serviceId}/client-documents`)
+                api.get(`/document-slots/services/${serviceId}/client-documents`),
+                api.get(`/project-manager/document-library`)
             ])
+
+            // Load document library with purposes
+            if (libraryRes.data.success) {
+                setDocumentLibrary(libraryRes.data.data || [])
+            }
 
             if (slotsRes.data.success) {
                 setSlots(slotsRes.data.data)
                 const initialActions: Record<string, SlotAction> = {}
+                const library = libraryRes.data.data || []
                 slotsRes.data.data.forEach((slot: DocumentSlot) => {
                     if (slot.status === 'NOT_STARTED') {
-                        const matchingDoc = findMatchingDoc(slot, docsRes.data.data || [])
+                        const matchingDoc = findMatchingDocWithPurposes(slot, docsRes.data.data || [], library)
                         initialActions[slot.id] = {
                             slotId: slot.id,
                             action: matchingDoc ? 'LINK' : (slot.isRequired ? 'REQUEST' : 'SKIP'),
@@ -137,13 +152,116 @@ export default function RequestDocumentsDialog({
             setLoading(false)
         }
     }
+    // Helper: Get document purposes from library
+    const getDocumentPurposes = (docType: string, library?: typeof documentLibrary): string[] => {
+        const lib = library || documentLibrary
+        const doc = lib.find(d => d.code.toUpperCase() === docType.toUpperCase())
+        return doc?.purposes || []
+    }
 
-    const findMatchingDoc = (slot: DocumentSlot, docs: ClientDocument[]) => {
+    // NEW: Purpose-based matching function
+    const findMatchingDocWithPurposes = (
+        slot: DocumentSlot,
+        docs: ClientDocument[],
+        library: typeof documentLibrary
+    ): ClientDocument | null => {
         const slotNameLower = slot.documentName.toLowerCase()
-        return docs.find(doc =>
-            doc.fileName.toLowerCase().includes(slotNameLower) ||
-            doc.documentType?.toLowerCase().includes(slotNameLower.replace(/\s+/g, '_'))
+        const slotCategory = slot.category || ''
+
+        // Priority 1: Exact document type match
+        const exactMatch = docs.find(doc => {
+            const docType = doc.documentType?.toUpperCase() || 'OTHER'
+            const slotCode = slot.documentName.toUpperCase().replace(/\s+/g, '_')
+            return docType === slotCode
+        })
+        if (exactMatch) return exactMatch
+
+        // Priority 2: OTHER type with description match
+        const otherDescMatch = docs.find(doc => {
+            if (doc.documentType?.toUpperCase() !== 'OTHER') return false
+            // Check if document description matches slot name
+            const docDesc = (doc as any).description?.toLowerCase() || ''
+            return docDesc.includes(slotNameLower) || slotNameLower.includes(docDesc)
+        })
+        if (otherDescMatch) return otherDescMatch
+
+        // Priority 3: Purpose-based match (NEW - dynamic from database)
+        const purposeMatch = docs.find(doc => {
+            const docType = doc.documentType?.toUpperCase() || 'OTHER'
+            const purposes = getDocumentPurposes(docType, library)
+            // Check if any of the document's purposes match the slot's category
+            return purposes.some(purpose =>
+                purpose.toLowerCase() === slotCategory.toLowerCase()
+            )
+        })
+        if (purposeMatch) return purposeMatch
+
+        // Priority 4: Filename contains slot name
+        const filenameMatch = docs.find(doc =>
+            doc.fileName.toLowerCase().includes(slotNameLower)
         )
+        return filenameMatch || null
+    }
+
+    // For backward compatibility (uses stored library)
+    const findMatchingDoc = (slot: DocumentSlot, docs: ClientDocument[]) => {
+        return findMatchingDocWithPurposes(slot, docs, documentLibrary)
+    }
+
+    // Enhanced: Get documents grouped by match priority (NEW - uses purposes)
+    const getGroupedDocsForSlot = (slot: DocumentSlot) => {
+        const slotNameLower = slot.documentName.toLowerCase()
+        const slotCategory = slot.category?.toLowerCase() || 'other'
+        const slotCode = slot.documentName.toUpperCase().replace(/\s+/g, '_')
+
+        const exactMatches: ClientDocument[] = []
+        const categoryMatches: ClientDocument[] = []
+        const otherDocs: ClientDocument[] = []
+
+        clientDocs.forEach(doc => {
+            const docType = doc.documentType?.toUpperCase() || 'OTHER'
+            const purposes = getDocumentPurposes(docType)
+
+            // Check for exact type match or filename match
+            if (docType === slotCode ||
+                doc.fileName.toLowerCase().includes(slotNameLower)) {
+                exactMatches.push(doc)
+            }
+            // Check for OTHER type with matching description
+            else if (docType === 'OTHER' && (doc as any).description) {
+                const docDesc = (doc as any).description.toLowerCase()
+                if (docDesc.includes(slotNameLower) || slotNameLower.includes(docDesc)) {
+                    exactMatches.push(doc)
+                } else {
+                    otherDocs.push(doc)
+                }
+            }
+            // Check for purpose-based match (NEW - dynamic from database)
+            else if (purposes.some(p => p.toLowerCase() === slotCategory)) {
+                categoryMatches.push(doc)
+            }
+            // Other available documents
+            else {
+                otherDocs.push(doc)
+            }
+        })
+
+        return { exactMatches, categoryMatches, otherDocs }
+    }
+
+    // Filter documents by slot's category (updated to use purposes)
+    const getFilteredDocsForSlot = (slot: DocumentSlot) => {
+        const slotCategory = slot.category?.toLowerCase() || 'other'
+
+        return clientDocs.filter(doc => {
+            const docType = doc.documentType?.toUpperCase() || 'OTHER'
+            const purposes = getDocumentPurposes(docType)
+
+            // Show documents that have the slot's category in their purposes
+            // OR are 'Other' type OR slot is 'Other' category
+            const hasPurposeMatch = purposes.some(p => p.toLowerCase() === slotCategory)
+            return hasPurposeMatch || docType === 'OTHER' || slotCategory === 'other'
+        })
     }
 
     const updateAction = (slotId: string, action: 'LINK' | 'REQUEST' | 'SKIP', linkedDocId?: string) => {
@@ -286,8 +404,8 @@ export default function RequestDocumentsDialog({
                                                 >
                                                     {/* Status Indicator */}
                                                     <div className={`w-3 h-3 rounded-full flex-shrink-0 ${action?.action === 'LINK' ? 'bg-blue-500' :
-                                                            action?.action === 'REQUEST' ? 'bg-orange-400' :
-                                                                'bg-slate-300'
+                                                        action?.action === 'REQUEST' ? 'bg-orange-400' :
+                                                            'bg-slate-300'
                                                         }`} />
 
                                                     {/* Document Name - Flexible width */}
@@ -360,43 +478,141 @@ export default function RequestDocumentsDialog({
                                                                         <ChevronDown className="h-3 w-3 ml-1 flex-shrink-0" />
                                                                     </Button>
                                                                 </PopoverTrigger>
-                                                                <PopoverContent className="w-72 p-2" align="end">
-                                                                    <div className="text-sm font-medium text-slate-700 mb-2 px-2">
-                                                                        Select Document
+                                                                <PopoverContent className="w-96 p-0" align="end">
+                                                                    <div className="p-3 border-b bg-slate-50 dark:bg-slate-800">
+                                                                        <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                                                            Link Document to: {slot.documentName}
+                                                                        </div>
+                                                                        <div className="text-xs text-slate-500 mt-0.5">
+                                                                            Category: {slot.category || 'General'}
+                                                                        </div>
                                                                     </div>
-                                                                    {clientDocs.length > 0 ? (
-                                                                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                                                                            {clientDocs.map(doc => (
-                                                                                <div
-                                                                                    key={doc.id}
-                                                                                    className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${action.linkedDocumentId === doc.id
-                                                                                            ? 'bg-blue-50 border border-blue-300'
-                                                                                            : 'hover:bg-slate-100 border border-transparent'
-                                                                                        }`}
-                                                                                    onClick={() => updateAction(slot.id, 'LINK', doc.id)}
-                                                                                >
-                                                                                    <span className="text-sm truncate flex-1 pr-2">{doc.fileName}</span>
-                                                                                    {doc.fileUrl && (
-                                                                                        <Button
-                                                                                            variant="ghost"
-                                                                                            size="sm"
-                                                                                            className="h-6 w-6 p-0 flex-shrink-0"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation()
-                                                                                                window.open(doc.fileUrl, '_blank')
-                                                                                            }}
-                                                                                        >
-                                                                                            <ExternalLink className="h-3 w-3" />
-                                                                                        </Button>
-                                                                                    )}
+                                                                    {(() => {
+                                                                        const { exactMatches, categoryMatches, otherDocs } = getGroupedDocsForSlot(slot)
+                                                                        const hasAnyDocs = exactMatches.length > 0 || categoryMatches.length > 0 || otherDocs.length > 0
+
+                                                                        if (!hasAnyDocs) {
+                                                                            return (
+                                                                                <div className="p-6 text-center">
+                                                                                    <FileText className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                                                                                    <p className="text-sm text-slate-500">No documents available</p>
+                                                                                    <p className="text-xs text-slate-400 mt-1">
+                                                                                        Request this from client instead
+                                                                                    </p>
                                                                                 </div>
-                                                                            ))}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="text-sm text-slate-500 text-center py-4">
-                                                                            No documents available
-                                                                        </div>
-                                                                    )}
+                                                                            )
+                                                                        }
+
+                                                                        return (
+                                                                            <div className="max-h-64 overflow-y-auto">
+                                                                                {/* Exact Matches Section */}
+                                                                                {exactMatches.length > 0 && (
+                                                                                    <div className="p-2">
+                                                                                        <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-green-700 dark:text-green-400">
+                                                                                            <span className="text-yellow-500">⭐</span>
+                                                                                            EXACT MATCH
+                                                                                        </div>
+                                                                                        {exactMatches.map(doc => (
+                                                                                            <div
+                                                                                                key={doc.id}
+                                                                                                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${action.linkedDocumentId === doc.id
+                                                                                                    ? 'bg-green-50 border-2 border-green-400 dark:bg-green-900/30'
+                                                                                                    : 'hover:bg-green-50 dark:hover:bg-green-900/20 border border-transparent'
+                                                                                                    }`}
+                                                                                                onClick={() => updateAction(slot.id, 'LINK', doc.id)}
+                                                                                            >
+                                                                                                <div className="flex-1 min-w-0 pr-2">
+                                                                                                    <span className="text-sm font-medium truncate block">{doc.fileName}</span>
+                                                                                                    <span className="text-xs text-slate-500">
+                                                                                                        {doc.documentType?.replace(/_/g, ' ') || 'Unspecified'}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                                {action.linkedDocumentId === doc.id && (
+                                                                                                    <span className="text-green-600 text-xs font-medium">✓ Selected</span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {/* Same Category Section */}
+                                                                                {categoryMatches.length > 0 && (
+                                                                                    <div className="p-2 border-t border-slate-100 dark:border-slate-700">
+                                                                                        <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                                                                            📂 SAME CATEGORY ({slot.category})
+                                                                                        </div>
+                                                                                        {categoryMatches.map(doc => (
+                                                                                            <div
+                                                                                                key={doc.id}
+                                                                                                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${action.linkedDocumentId === doc.id
+                                                                                                    ? 'bg-blue-50 border-2 border-blue-400 dark:bg-blue-900/30'
+                                                                                                    : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-transparent'
+                                                                                                    }`}
+                                                                                                onClick={() => updateAction(slot.id, 'LINK', doc.id)}
+                                                                                            >
+                                                                                                <div className="flex-1 min-w-0 pr-2">
+                                                                                                    <span className="text-sm truncate block">{doc.fileName}</span>
+                                                                                                    <span className="text-xs text-slate-500">
+                                                                                                        {doc.documentType?.replace(/_/g, ' ') || 'Unspecified'}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                                {action.linkedDocumentId === doc.id && (
+                                                                                                    <span className="text-blue-600 text-xs font-medium">✓ Selected</span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {/* Other Documents Section */}
+                                                                                {otherDocs.length > 0 && (
+                                                                                    <div className="p-2 border-t border-slate-100 dark:border-slate-700">
+                                                                                        <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-slate-500">
+                                                                                            📁 OTHER AVAILABLE
+                                                                                        </div>
+                                                                                        {otherDocs.slice(0, 5).map(doc => (
+                                                                                            <div
+                                                                                                key={doc.id}
+                                                                                                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${action.linkedDocumentId === doc.id
+                                                                                                    ? 'bg-slate-100 border-2 border-slate-400'
+                                                                                                    : 'hover:bg-slate-50 border border-transparent'
+                                                                                                    }`}
+                                                                                                onClick={() => updateAction(slot.id, 'LINK', doc.id)}
+                                                                                            >
+                                                                                                <div className="flex-1 min-w-0 pr-2">
+                                                                                                    <span className="text-sm truncate block text-slate-600">{doc.fileName}</span>
+                                                                                                    <span className="text-xs text-slate-400">
+                                                                                                        {doc.documentType?.replace(/_/g, ' ') || 'Unspecified'}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                                {action.linkedDocumentId === doc.id && (
+                                                                                                    <span className="text-slate-600 text-xs font-medium">✓ Selected</span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                        {otherDocs.length > 5 && (
+                                                                                            <p className="text-xs text-slate-400 text-center py-1">
+                                                                                                +{otherDocs.length - 5} more documents
+                                                                                            </p>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        )
+                                                                    })()}
+
+                                                                    {/* Request Instead Option */}
+                                                                    <div className="p-2 border-t bg-slate-50 dark:bg-slate-800">
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="w-full text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                                                            onClick={() => updateAction(slot.id, 'REQUEST')}
+                                                                        >
+                                                                            <Mail className="h-4 w-4 mr-2" />
+                                                                            Request from Client Instead
+                                                                        </Button>
+                                                                    </div>
                                                                 </PopoverContent>
                                                             </Popover>
                                                         )}
@@ -452,8 +668,15 @@ export default function RequestDocumentsDialog({
                                                     <SelectContent>
                                                         <SelectItem value="Identity">Identity</SelectItem>
                                                         <SelectItem value="Financial">Financial</SelectItem>
-                                                        <SelectItem value="Business">Business</SelectItem>
                                                         <SelectItem value="Tax">Tax</SelectItem>
+                                                        <SelectItem value="GST">GST</SelectItem>
+                                                        <SelectItem value="Business">Business</SelectItem>
+                                                        <SelectItem value="Capital Gains">Capital Gains</SelectItem>
+                                                        <SelectItem value="Professional">Professional</SelectItem>
+                                                        <SelectItem value="Address Proof">Address Proof</SelectItem>
+                                                        <SelectItem value="Foreign/NRI">Foreign/NRI</SelectItem>
+                                                        <SelectItem value="Payroll">Payroll</SelectItem>
+                                                        <SelectItem value="Import/Export">Import/Export</SelectItem>
                                                         <SelectItem value="Other">Other</SelectItem>
                                                     </SelectContent>
                                                 </Select>

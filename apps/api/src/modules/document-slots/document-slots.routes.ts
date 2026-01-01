@@ -511,4 +511,39 @@ router.post(
     }
 );
 
+// ============================================
+// PUBLIC ROUTES (for document library)
+// ============================================
+
+/**
+ * GET /api/document-slots/document-library
+ * Get all documents from DocumentMaster grouped by category
+ * Used for two-step category -> document selection
+ */
+router.get(
+    '/document-library',
+    authenticate,
+    async (req: AuthenticatedRequest, res): Promise<void> => {
+        try {
+            const categories = await slotService.getDocumentMasterLibrary();
+            const hints = slotService.getCategoryHints();
+
+            res.json({
+                success: true,
+                data: {
+                    categories,
+                    hints,
+                },
+            });
+        } catch (error) {
+            console.error('Error fetching document library:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to fetch document library',
+            });
+        }
+    }
+);
+
 export default router;
+

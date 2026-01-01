@@ -15,6 +15,7 @@ import {
   Upload,
   X,
   Shield,
+  Search,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,6 +39,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import api from "@/lib/api"
 import { toast } from "sonner"
+import DocumentTypeSearch from "@/components/documents/DocumentTypeSearch"
 
 interface Document {
   id: string
@@ -66,9 +68,17 @@ interface UserFolder {
   documentTypes: DocumentType[]
 }
 
+// NEW: Category section for two-level hierarchy
+interface CategorySection {
+  category: string
+  documentTypes: DocumentType[]
+  totalFiles: number
+}
+
 interface RoleSection {
   title: string
   users: UserFolder[]
+  categories?: CategorySection[]  // NEW: Category-based grouping
   totalFiles: number
 }
 
@@ -76,32 +86,46 @@ interface HierarchicalData {
   myDocuments: RoleSection
 }
 
-const DOCUMENT_TYPES = [
-  { value: "PAN_CARD", label: "PAN Card" },
-  { value: "AADHAR_CARD", label: "Aadhar Card" },
-  { value: "BANK_STATEMENT", label: "Bank Statement" },
-  { value: "FORM_16", label: "Form 16" },
-  { value: "FORM_26AS", label: "Form 26AS" },
-  { value: "GST_CERTIFICATE", label: "GST Certificate" },
-  { value: "INCORPORATION_CERTIFICATE", label: "Incorporation Certificate" },
-  { value: "PARTNERSHIP_DEED", label: "Partnership Deed" },
-  { value: "MOA_AOA", label: "MOA/AOA" },
-  { value: "AUDIT_REPORT", label: "Audit Report" },
-  { value: "BALANCE_SHEET", label: "Balance Sheet" },
-  { value: "PROFIT_LOSS", label: "Profit & Loss" },
-  { value: "TAX_RETURN", label: "Tax Return" },
-  { value: "OTHER", label: "Other" },
-]
+// Document library types
+interface DocumentMasterItem {
+  id: string
+  code: string
+  name: string
+  description: string | null
+}
+
+interface CategoryData {
+  category: string
+  documents: DocumentMasterItem[]
+}
+
+interface DocumentLibraryData {
+  categories: CategoryData[]
+  hints: Record<string, string>
+}
 
 export default function ClientDocumentsPage() {
   const [data, setData] = useState<HierarchicalData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set())
 
+  // Document library for two-step selection
+  const [documentLibrary, setDocumentLibrary] = useState<DocumentLibraryData | null>(null)
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false)
+
   // Upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [documentType, setDocumentType] = useState("OTHER")
+  // NEW: Combined document type selection (from search-first component)
+  const [selectedDocType, setSelectedDocType] = useState<{
+    documentType: string
+    category: string
+    name: string
+    customName?: string  // For OTHER documents
+  } | null>(null)
+  // Keep these for backward compatibility (will be removed later)
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [documentType, setDocumentType] = useState<string>("")
   const [description, setDescription] = useState("")
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -121,8 +145,24 @@ export default function ClientDocumentsPage() {
     }
   }
 
+  const fetchDocumentLibrary = async () => {
+    try {
+      setIsLoadingLibrary(true)
+      const response = await api.get("/document-slots/document-library")
+      if (response.data.success) {
+        setDocumentLibrary(response.data.data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch document library:", error)
+      // Non-critical, continue with fallback
+    } finally {
+      setIsLoadingLibrary(false)
+    }
+  }
+
   useEffect(() => {
     fetchDocuments()
+    fetchDocumentLibrary()
   }, [])
 
   const toggleType = (key: string) => {
@@ -201,11 +241,25 @@ export default function ClientDocumentsPage() {
       return
     }
 
+    // Use new search-first selection if available, otherwise fallback to old state
+    const docTypeToUse = selectedDocType?.documentType || documentType
+    const categoryToUse = selectedDocType?.category || selectedCategory
+
+    if (!docTypeToUse) {
+      toast.error("Please select a document type")
+      return
+    }
+
     setIsUploading(true)
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
-      formData.append('documentType', documentType)
+      formData.append('documentType', docTypeToUse)
+      formData.append('category', categoryToUse)
+      // NEW: Send customName for OTHER documents to enable auto-matching
+      if (selectedDocType?.customName) {
+        formData.append('customName', selectedDocType.customName)
+      }
       if (description) {
         formData.append('description', description)
       }
@@ -220,7 +274,9 @@ export default function ClientDocumentsPage() {
         toast.success("Document uploaded successfully!")
         setUploadModalOpen(false)
         setSelectedFile(null)
-        setDocumentType("OTHER")
+        setSelectedDocType(null)       // Reset new state
+        setSelectedCategory("")        // Reset old state (backward compat)
+        setDocumentType("")            // Reset old state (backward compat)
         setDescription("")
         fetchDocuments()
       }
@@ -245,6 +301,7 @@ export default function ClientDocumentsPage() {
 
   const totalFiles = data?.myDocuments?.totalFiles || 0
   const documentTypes = data?.myDocuments?.users?.[0]?.documentTypes || []
+  const categories = data?.myDocuments?.categories || []  // NEW: Category-based grouping
 
   return (
     <div className="space-y-6">
@@ -307,21 +364,21 @@ export default function ClientDocumentsPage() {
               />
             </div>
 
-            {/* Document Type */}
+            {/* NEW: Search-First Document Type Selector */}
             <div className="space-y-2">
-              <Label>Document Type</Label>
-              <Select value={documentType} onValueChange={setDocumentType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select document type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOCUMENT_TYPES.map(type => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                What type of document is this? <span className="text-red-500">*</span>
+              </Label>
+              <DocumentTypeSearch
+                value={selectedDocType?.documentType}
+                onSelect={setSelectedDocType}
+                documentLibrary={documentLibrary}
+                placeholder="Search for document type... e.g., 'PAN Card'"
+              />
+              <p className="text-xs text-muted-foreground">
+                Start typing to search. Category will be set automatically.
+              </p>
             </div>
 
             {/* Description */}
@@ -331,15 +388,26 @@ export default function ClientDocumentsPage() {
                 placeholder="Add a description for this document..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={3}
+                rows={2}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUploadModalOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setUploadModalOpen(false)
+              setSelectedDocType(null)
+              setSelectedCategory("")
+              setDocumentType("")
+              setSelectedFile(null)
+              setDescription("")
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleUpload} disabled={!selectedFile || isUploading}>
+            <Button
+              onClick={handleUpload}
+              disabled={!selectedFile || !selectedDocType || isUploading}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
               {isUploading ? "Uploading..." : "Upload Document"}
             </Button>
           </DialogFooter>
@@ -452,99 +520,232 @@ export default function ClientDocumentsPage() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {documentTypes.map((docType) => {
-                const typeKey = docType.type
-                const isTypeExpanded = expandedTypes.has(typeKey)
+            <div className="space-y-4">
+              {/* NEW: Two-level hierarchy: Category → Document Type */}
+              {categories.length > 0 ? (
+                // Show category-based grouping
+                categories.map((category) => {
+                  const categoryKey = `cat-${category.category}`
+                  const isCategoryExpanded = expandedTypes.has(categoryKey)
 
-                return (
-                  <div key={typeKey} className="border rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800/50">
-                    {/* Document Type Header */}
-                    <div
-                      className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                      onClick={() => toggleType(typeKey)}
-                    >
-                      {isTypeExpanded ? (
-                        <ChevronDown className="h-5 w-5 text-gray-500" />
-                      ) : (
-                        <ChevronRight className="h-5 w-5 text-gray-500" />
-                      )}
-                      {isTypeExpanded ? (
-                        <FolderOpen className="h-5 w-5 text-amber-500" />
-                      ) : (
-                        <Folder className="h-5 w-5 text-amber-500" />
-                      )}
-                      <span className="font-medium">{formatDocumentType(docType.type)}</span>
-                      <Badge variant="secondary" className="ml-auto">
-                        {docType.count} {docType.count === 1 ? 'file' : 'files'}
-                      </Badge>
-                    </div>
-
-                    {/* Documents */}
-                    {isTypeExpanded && (
-                      <div className="bg-white dark:bg-gray-900 border-t p-2 space-y-1">
-                        {docType.documents.map((doc) => (
-                          <div
-                            key={doc.id}
-                            className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg group transition-colors"
-                          >
-                            <FileText className="h-5 w-5 text-blue-500" />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate">{doc.fileName}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {formatFileSize(doc.fileSize)} • {format(new Date(doc.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
-                              </div>
-                              {doc.description && (
-                                <div className="text-xs text-gray-500 mt-1 truncate">
-                                  {doc.description}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-9 w-9"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleView(doc)
-                                }}
-                                title="View"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-9 w-9"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDownload(doc)
-                                }}
-                                title="Download"
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-9 w-9"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDelete(doc.id)
-                                }}
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                  return (
+                    <div key={categoryKey} className="border rounded-lg overflow-hidden">
+                      {/* Category Header */}
+                      <div
+                        className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 cursor-pointer hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 transition-colors"
+                        onClick={() => toggleType(categoryKey)}
+                      >
+                        {isCategoryExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-purple-600" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-purple-600" />
+                        )}
+                        {isCategoryExpanded ? (
+                          <FolderOpen className="h-5 w-5 text-purple-600" />
+                        ) : (
+                          <Folder className="h-5 w-5 text-purple-600" />
+                        )}
+                        <span className="font-semibold text-purple-800 dark:text-purple-200">{category.category}</span>
+                        <Badge variant="secondary" className="ml-auto bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100">
+                          {category.totalFiles} {category.totalFiles === 1 ? 'file' : 'files'}
+                        </Badge>
                       </div>
-                    )}
-                  </div>
-                )
-              })}
+
+                      {/* Document Types within Category */}
+                      {isCategoryExpanded && (
+                        <div className="border-t bg-white dark:bg-gray-900 p-2 space-y-2">
+                          {category.documentTypes.map((docType) => {
+                            const typeKey = `${categoryKey}-${docType.type}`
+                            const isTypeExpanded = expandedTypes.has(typeKey)
+
+                            return (
+                              <div key={typeKey} className="border rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800/50">
+                                {/* Document Type Header */}
+                                <div
+                                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                  onClick={() => toggleType(typeKey)}
+                                >
+                                  {isTypeExpanded ? (
+                                    <ChevronDown className="h-4 w-4 text-gray-500" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-gray-500" />
+                                  )}
+                                  {isTypeExpanded ? (
+                                    <FolderOpen className="h-4 w-4 text-amber-500" />
+                                  ) : (
+                                    <Folder className="h-4 w-4 text-amber-500" />
+                                  )}
+                                  <span className="font-medium text-sm">{formatDocumentType(docType.type)}</span>
+                                  <Badge variant="outline" className="ml-auto text-xs">
+                                    {docType.count} {docType.count === 1 ? 'file' : 'files'}
+                                  </Badge>
+                                </div>
+
+                                {/* Documents */}
+                                {isTypeExpanded && (
+                                  <div className="bg-white dark:bg-gray-900 border-t p-2 space-y-1">
+                                    {docType.documents.map((doc) => (
+                                      <div
+                                        key={doc.id}
+                                        className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg group transition-colors"
+                                      >
+                                        <FileText className="h-5 w-5 text-blue-500" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium truncate">{doc.fileName}</div>
+                                          <div className="text-sm text-muted-foreground">
+                                            {formatFileSize(doc.fileSize)} • {format(new Date(doc.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
+                                          </div>
+                                          {doc.description && (
+                                            <div className="text-xs text-gray-500 mt-1 truncate">
+                                              {doc.description}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleView(doc)
+                                            }}
+                                            title="View"
+                                          >
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDownload(doc)
+                                            }}
+                                            title="Download"
+                                          >
+                                            <Download className="h-4 w-4" />
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-9 w-9"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleDelete(doc.id)
+                                            }}
+                                            title="Delete"
+                                          >
+                                            <Trash2 className="h-4 w-4 text-red-500" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              ) : (
+                // Fallback: Show flat document type grouping (backward compatibility)
+                documentTypes.map((docType) => {
+                  const typeKey = docType.type
+                  const isTypeExpanded = expandedTypes.has(typeKey)
+
+                  return (
+                    <div key={typeKey} className="border rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-800/50">
+                      {/* Document Type Header */}
+                      <div
+                        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        onClick={() => toggleType(typeKey)}
+                      >
+                        {isTypeExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-gray-500" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-gray-500" />
+                        )}
+                        {isTypeExpanded ? (
+                          <FolderOpen className="h-5 w-5 text-amber-500" />
+                        ) : (
+                          <Folder className="h-5 w-5 text-amber-500" />
+                        )}
+                        <span className="font-medium">{formatDocumentType(docType.type)}</span>
+                        <Badge variant="secondary" className="ml-auto">
+                          {docType.count} {docType.count === 1 ? 'file' : 'files'}
+                        </Badge>
+                      </div>
+
+                      {/* Documents */}
+                      {isTypeExpanded && (
+                        <div className="bg-white dark:bg-gray-900 border-t p-2 space-y-1">
+                          {docType.documents.map((doc) => (
+                            <div
+                              key={doc.id}
+                              className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg group transition-colors"
+                            >
+                              <FileText className="h-5 w-5 text-blue-500" />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{doc.fileName}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {formatFileSize(doc.fileSize)} • {format(new Date(doc.uploadedAt), "MMM d, yyyy 'at' h:mm a")}
+                                </div>
+                                {doc.description && (
+                                  <div className="text-xs text-gray-500 mt-1 truncate">
+                                    {doc.description}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleView(doc)
+                                  }}
+                                  title="View"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDownload(doc)
+                                  }}
+                                  title="Download"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDelete(doc.id)
+                                  }}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
             </div>
           )}
         </CardContent>

@@ -491,21 +491,72 @@ export async function getClientDocuments(_projectManagerId: string, firmId: stri
       },
       select: {
         id: true,
+        fileName: true,
+        fileType: true,
+        fileSize: true,
+        uploadedAt: true,
         documentType: true,
+        category: true,
+        description: true,
         status: true,
+        // Check if linked to any service through slots (using correct relation names)
+        linkedToSlots: {
+          select: {
+            id: true,
+            service: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
+        uploadedToSlots: {
+          select: {
+            id: true,
+            service: {
+              select: {
+                title: true,
+              },
+            },
+          },
+        },
       },
     });
 
     // Group by document type
-    const typeCount: Record<string, number> = {};
-    documents.forEach(doc => {
+    const typeGroups: Record<string, any[]> = {};
+    documents.forEach((doc: any) => {
       const type = doc.documentType || 'OTHER';
-      typeCount[type] = (typeCount[type] || 0) + 1;
+      if (!typeGroups[type]) {
+        typeGroups[type] = [];
+      }
+
+      // Determine if linked to a service (either through linkedToSlots or uploadedToSlots)
+      const allSlots = [...(doc.linkedToSlots || []), ...(doc.uploadedToSlots || [])];
+      const isLinkedToService = allSlots.length > 0;
+      const linkedServiceTitle = isLinkedToService
+        ? allSlots[0]?.service?.title || null
+        : null;
+
+      typeGroups[type].push({
+        id: doc.id,
+        fileName: doc.fileName,
+        fileType: doc.fileType,
+        fileSize: doc.fileSize,
+        uploadedAt: doc.uploadedAt,
+        documentType: doc.documentType,
+        category: doc.category,
+        uploadStatus: doc.status,
+        isLinkedToService,
+        linkedServiceTitle,
+        uploadSource: isLinkedToService ? 'SLOT' : 'SELF',
+      });
     });
 
-    const documentTypes = Object.entries(typeCount).map(([type, count]) => ({
+    const documentTypes = Object.entries(typeGroups).map(([type, docs]) => ({
       type,
-      count,
+      count: docs.length,
+      documents: docs,
     }));
 
     result.push({
