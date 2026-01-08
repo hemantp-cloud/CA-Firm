@@ -67,7 +67,7 @@ export default function ClientDocumentSlots({
     const [uploadSlotId, setUploadSlotId] = useState<string | null>(null)
     const [uploadSlotName, setUploadSlotName] = useState<string>("")
     const [uploadSlotCategory, setUploadSlotCategory] = useState<string | null>(null)
-    // NEW: Track existing document for replace confirmation
+    // Track existing document for replace confirmation
     const [existingDocument, setExistingDocument] = useState<{
         id: string
         fileName: string
@@ -96,7 +96,7 @@ export default function ClientDocumentSlots({
         }
     }
 
-    // NEW: Function to initiate upload with replace check
+    // Initiate upload with replace check
     const initiateUpload = (slot: DocumentSlot) => {
         setUploadSlotId(slot.id)
         setUploadSlotName(slot.documentName)
@@ -118,7 +118,7 @@ export default function ClientDocumentSlots({
         }
     }
 
-    // NEW: Confirm replacement and proceed with upload
+    // Confirm replacement and proceed with upload
     const confirmReplacement = () => {
         setShowReplaceConfirm(false)
         // Keep uploadSlotId set so the upload dialog opens
@@ -130,7 +130,7 @@ export default function ClientDocumentSlots({
             try {
                 const response = await api.post(`/document-slots/client/slots/${uploadSlotId}/upload`, {
                     documentId: document.id,
-                    replaceExisting: !!existingDocument  // NEW: Flag to indicate replacement
+                    replaceExisting: !!existingDocument
                 })
 
                 if (response.data.success) {

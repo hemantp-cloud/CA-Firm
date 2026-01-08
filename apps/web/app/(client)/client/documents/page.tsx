@@ -68,7 +68,7 @@ interface UserFolder {
   documentTypes: DocumentType[]
 }
 
-// NEW: Category section for two-level hierarchy
+// Category section for two-level hierarchy
 interface CategorySection {
   category: string
   documentTypes: DocumentType[]
@@ -78,7 +78,7 @@ interface CategorySection {
 interface RoleSection {
   title: string
   users: UserFolder[]
-  categories?: CategorySection[]  // NEW: Category-based grouping
+  categories?: CategorySection[]  // Category-based grouping
   totalFiles: number
 }
 
@@ -116,7 +116,7 @@ export default function ClientDocumentsPage() {
   // Upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  // NEW: Combined document type selection (from search-first component)
+  // Combined document type selection (from search-first component)
   const [selectedDocType, setSelectedDocType] = useState<{
     documentType: string
     category: string
@@ -256,7 +256,7 @@ export default function ClientDocumentsPage() {
       formData.append('file', selectedFile)
       formData.append('documentType', docTypeToUse)
       formData.append('category', categoryToUse)
-      // NEW: Send customName for OTHER documents to enable auto-matching
+      // Send customName for OTHER documents to enable auto-matching
       if (selectedDocType?.customName) {
         formData.append('customName', selectedDocType.customName)
       }
@@ -301,7 +301,7 @@ export default function ClientDocumentsPage() {
 
   const totalFiles = data?.myDocuments?.totalFiles || 0
   const documentTypes = data?.myDocuments?.users?.[0]?.documentTypes || []
-  const categories = data?.myDocuments?.categories || []  // NEW: Category-based grouping
+  const categories = data?.myDocuments?.categories || []  // Category-based grouping
 
   return (
     <div className="space-y-6">

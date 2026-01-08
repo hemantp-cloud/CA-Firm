@@ -114,7 +114,7 @@ export const removePMFromClientSchema = z.object({
 });
 
 // ============================================
-// ENHANCED SERVICE CREATE VALIDATION
+// SERVICE CREATE VALIDATION
 // ============================================
 
 export const createEnhancedServiceSchema = z.object({
@@ -139,7 +139,7 @@ export const createEnhancedServiceSchema = z.object({
     // Auto-assign options
     assignToId: z.string().uuid().optional(),
     assignToType: z.enum(['PROJECT_MANAGER', 'TEAM_MEMBER']).optional(),
-    // NEW: Required documents for slot creation
+    // Required documents for slot creation
     requiredDocuments: z.array(z.object({
         documentMasterId: z.string().uuid().optional(),
         name: z.string().min(1),

@@ -41,8 +41,8 @@ interface ServiceActionButtonsProps {
     userRole: string
     isAssignee: boolean
     onActionComplete: () => void
-    serviceName?: string  // NEW: for RequestDocumentsDialog
-    clientName?: string   // NEW: for RequestDocumentsDialog
+    serviceName?: string
+    clientName?: string
 }
 
 // Icon mapping
@@ -73,14 +73,14 @@ export default function ServiceActionButtons({
     const [activeAction, setActiveAction] = useState<ActionConfig | null>(null)
     const [inputValue, setInputValue] = useState("")
     const [dialogOpen, setDialogOpen] = useState(false)
-    const [requestDocsDialogOpen, setRequestDocsDialogOpen] = useState(false)  // NEW: Enhanced dialog
+    const [requestDocsDialogOpen, setRequestDocsDialogOpen] = useState(false)
 
     // Filter out 'assign' and 'delegate' as they are handled by AssignDialog in the page header
     const allActions = getAvailableActions(status, userRole, isAssignee)
     const actions = allActions.filter(a => !['assign', 'delegate'].includes(a.action))
 
     const handleActionClick = (action: ActionConfig) => {
-        // NEW: Special handling for request-documents to use enhanced dialog
+        // Special handling for request-documents to use enhanced dialog
         if (action.action === 'request-documents') {
             setRequestDocsDialogOpen(true)
             return
@@ -245,7 +245,7 @@ export default function ServiceActionButtons({
                 </DialogContent>
             </Dialog>
 
-            {/* NEW: Enhanced Request Documents Dialog */}
+            {/* Request Documents Dialog */}
             <RequestDocumentsDialog
                 serviceId={serviceId}
                 serviceName={serviceName}

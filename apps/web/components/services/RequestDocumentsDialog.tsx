@@ -159,7 +159,7 @@ export default function RequestDocumentsDialog({
         return doc?.purposes || []
     }
 
-    // NEW: Purpose-based matching function
+    // Purpose-based matching function
     const findMatchingDocWithPurposes = (
         slot: DocumentSlot,
         docs: ClientDocument[],
@@ -185,7 +185,7 @@ export default function RequestDocumentsDialog({
         })
         if (otherDescMatch) return otherDescMatch
 
-        // Priority 3: Purpose-based match (NEW - dynamic from database)
+        // Priority 3: Purpose-based match (dynamic from database)
         const purposeMatch = docs.find(doc => {
             const docType = doc.documentType?.toUpperCase() || 'OTHER'
             const purposes = getDocumentPurposes(docType, library)
@@ -208,7 +208,7 @@ export default function RequestDocumentsDialog({
         return findMatchingDocWithPurposes(slot, docs, documentLibrary)
     }
 
-    // Enhanced: Get documents grouped by match priority (NEW - uses purposes)
+    // Get documents grouped by match priority (uses purposes)
     const getGroupedDocsForSlot = (slot: DocumentSlot) => {
         const slotNameLower = slot.documentName.toLowerCase()
         const slotCategory = slot.category?.toLowerCase() || 'other'

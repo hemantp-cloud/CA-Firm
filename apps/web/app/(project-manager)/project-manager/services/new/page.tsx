@@ -129,11 +129,11 @@ const serviceSchema = z.object({
     financialYear: z.string().optional(),
     assessmentYear: z.string().optional(),
     quarter: z.string().optional(),
-    period: z.string().optional(), // NEW: For monthly services (YYYY-MM)
+    period: z.string().optional(), // For monthly services (YYYY-MM)
     dueDate: z.string().min(1, "Due date is required"),
     feeAmount: z.string().optional(),
-    priority: z.string().optional(), // NEW: LOW, NORMAL, HIGH, URGENT
-    clientNotes: z.string().optional(), // NEW: Notes visible to client
+    priority: z.string().optional(), // LOW, NORMAL, HIGH, URGENT
+    clientNotes: z.string().optional(), // Notes visible to client
     internalNotes: z.string().optional(),
 })
 
@@ -152,7 +152,7 @@ export default function NewServicePage() {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // NEW: Wizard step state (1-4)
+    // Wizard step state (1-4)
     const [currentStep, setCurrentStep] = useState(1)
     const [completedSteps, setCompletedSteps] = useState<number[]>([])
     const [collapsedCategories, setCollapsedCategories] = useState<string[]>([])
@@ -164,13 +164,13 @@ export default function NewServicePage() {
     const [documentRequirements, setDocumentRequirements] = useState<DocumentRequirement[]>([])
     const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
 
-    // NEW: Universal Document Library state
+    // Universal Document Library state
     const [documentLibrary, setDocumentLibrary] = useState<DocumentMasterItem[]>([])
     const [documentLibraryGrouped, setDocumentLibraryGrouped] = useState<Record<string, DocumentMasterItem[]>>({})
     const [selectedDocumentItems, setSelectedDocumentItems] = useState<SelectedDocumentItem[]>([])
     const [documentSearch, setDocumentSearch] = useState("")
     const [customDocumentName, setCustomDocumentName] = useState("")
-    const [customDocumentCategory, setCustomDocumentCategory] = useState("Other") // NEW: Category for custom document
+    const [customDocumentCategory, setCustomDocumentCategory] = useState("Other") // Category for custom document
     const [isAddingCustomDoc, setIsAddingCustomDoc] = useState(false)
     const [documentCategoryFilter, setDocumentCategoryFilter] = useState("all")
 
@@ -892,7 +892,7 @@ export default function NewServicePage() {
         )
     }
 
-    // NEW: Toggle document from universal library
+    // Toggle document from universal library
     const toggleDocumentItem = (doc: DocumentMasterItem, isFromSuggested: boolean = false, isMandatory: boolean = false) => {
         setSelectedDocumentItems(prev => {
             const existingIndex = prev.findIndex(d => d.name === doc.name)
@@ -912,7 +912,7 @@ export default function NewServicePage() {
         })
     }
 
-    // NEW: Toggle Required/Optional status
+    // Toggle Required/Optional status
     const toggleDocumentRequired = (docName: string) => {
         setSelectedDocumentItems(prev =>
             prev.map(d =>
@@ -923,7 +923,7 @@ export default function NewServicePage() {
         )
     }
 
-    // NEW: Add custom document
+    // Add custom document
     const addCustomDocument = () => {
         if (!customDocumentName.trim()) return
 
@@ -948,17 +948,17 @@ export default function NewServicePage() {
         setIsAddingCustomDoc(false)
     }
 
-    // NEW: Remove custom document
+    // Remove custom document
     const removeCustomDocument = (docName: string) => {
         setSelectedDocumentItems(prev => prev.filter(d => d.name !== docName || !d.isCustom))
     }
 
-    // NEW: Check if document is selected
+    // Check if document is selected
     const isDocumentSelected = (docName: string): boolean => {
         return selectedDocumentItems.some(d => d.name === docName)
     }
 
-    // NEW: Get filtered document library based on search and category
+    // Get filtered document library based on search and category
     const filteredDocumentLibrary = useMemo(() => {
         let filtered = documentLibrary
 
@@ -984,13 +984,13 @@ export default function NewServicePage() {
         return filtered
     }, [documentLibrary, documentCategoryFilter, documentSearch, documentRequirements])
 
-    // NEW: Get unique categories from document library
+    // Get unique categories from document library
     const documentCategories = useMemo(() => {
         const categories = [...new Set(documentLibrary.map(d => d.category))]
         return categories.sort()
     }, [documentLibrary])
 
-    // NEW: Group filtered documents by category for accordion view
+    // Group filtered documents by category for accordion view
     const filteredDocumentsByCategory = useMemo(() => {
         const grouped: Record<string, DocumentMasterItem[]> = {}
         filteredDocumentLibrary.forEach(doc => {
@@ -1013,7 +1013,7 @@ export default function NewServicePage() {
                 dueDate: new Date(data.dueDate).toISOString(),
                 // Include selected document names for the request (backward compatibility)
                 requestedDocuments: selectedDocumentItems.map(d => d.name),
-                // NEW: Include full document details with Required/Optional info
+                // Include full document details with Required/Optional info
                 requiredDocuments: selectedDocumentItems,
             }
 

@@ -38,10 +38,10 @@ interface Document {
     uploadStatus: string
     uploadedAt: string
     documentType: string | null
-    category?: string | null  // NEW: Document category
-    isLinkedToService?: boolean  // NEW: Track if linked to a service slot
-    linkedServiceTitle?: string  // NEW: Which service it's linked to
-    uploadSource?: 'SLOT' | 'SELF'  // NEW: How the document was uploaded
+    category?: string | null  // Document category
+    isLinkedToService?: boolean  // Track if linked to a service slot
+    linkedServiceTitle?: string  // Which service it's linked to
+    uploadSource?: 'SLOT' | 'SELF'  // How the document was uploaded
     user: {
         id: string
         name: string

@@ -29,7 +29,7 @@ import Link from "next/link"
 import api from "@/lib/api"
 import { toast } from "sonner"
 
-// Import new enhanced workflow components
+// Workflow components
 import StatusTimeline, { StatusBadge, StatusProgressBar } from "@/components/services/StatusTimeline"
 import ClientDocumentSlots from "@/components/services/ClientDocumentSlots"
 import {

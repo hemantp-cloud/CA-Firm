@@ -1,9 +1,6 @@
 import prisma from '../../shared/utils/prisma';
 import { ServiceStatus, ServiceType } from '@prisma/client';
 
-// Note: ServiceOrigin, RequestStatus, RequestUrgency are available from @prisma/client when needed
-// Note: isValidStatusTransition is available for validation if needed
-
 // ============================================
 // TYPE DEFINITIONS
 // ============================================
@@ -28,7 +25,7 @@ interface CreateServiceData {
     internalNotes?: string;
     assignToId?: string;
     assignToType?: 'PROJECT_MANAGER' | 'TEAM_MEMBER';
-    // NEW: Required documents for slot creation
+    // Required documents for slot creation
     requiredDocuments?: Array<{
         documentMasterId?: string;
         name: string;
@@ -74,7 +71,7 @@ async function logStatusChange(
 }
 
 // ============================================
-// ENHANCED SERVICE CRUD
+// SERVICE CRUD
 // ============================================
 
 /**
@@ -159,7 +156,7 @@ export async function createEnhancedService(
         'Service created'
     );
 
-    // NEW: Create document slots from requiredDocuments
+    // Create document slots from requiredDocuments
     if (data.requiredDocuments && data.requiredDocuments.length > 0) {
         for (const doc of data.requiredDocuments) {
             await prisma.serviceDocumentSlot.create({

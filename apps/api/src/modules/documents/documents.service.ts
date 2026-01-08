@@ -182,7 +182,7 @@ export async function uploadDocument(
   file: Express.Multer.File,
   documentData: {
     documentType: string;
-    category?: string;  // NEW: Document category (Identity, Financial, Tax, etc.)
+    category?: string;
     serviceId?: string;
     description?: string;
     clientId?: string;
@@ -246,7 +246,7 @@ export async function uploadDocument(
       fileSize: BigInt(file.size),
       storagePath,
       documentType: documentData.documentType as any,
-      category: documentData.category || null,  // NEW: Save category
+      category: documentData.category || null,
       description: documentData.description || null,
       status: 'PENDING',
       teamMemberId,

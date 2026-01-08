@@ -1,4 +1,4 @@
-// Enhanced Service Workflow Types
+// Service Workflow Types
 
 // Service Status - All 12 statuses
 export type ServiceStatus =
@@ -48,7 +48,7 @@ export type ServiceType =
     | 'CONSULTATION'
     | 'OTHER';
 
-// Enhanced Service
+// Service Interface
 export interface EnhancedService {
     id: string;
     firmId: string;
@@ -65,7 +65,7 @@ export interface EnhancedService {
     createdAt: string;
     updatedAt: string;
 
-    // Enhanced fields
+    // Additional fields
     origin: ServiceOrigin;
     serviceRequestId: string | null;
     financialYear: string | null;

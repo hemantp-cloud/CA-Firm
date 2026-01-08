@@ -5,6 +5,22 @@ const prisma = new PrismaClient({
     log: ['query', 'info', 'warn', 'error'],
 });
 
+/**
+ * CREATE SUPER ADMIN SCRIPT
+ * =========================
+ * This script creates or updates the Super Admin user.
+ * 
+ * IMPORTANT: Update the credentials below before running!
+ */
+
+// ============================================
+// CONFIGURE YOUR CREDENTIALS HERE
+// ============================================
+const SUPER_ADMIN_EMAIL = 'admin@example.com';       // Change this!
+const SUPER_ADMIN_PASSWORD = 'YourSecurePassword123!'; // Change this!
+const SUPER_ADMIN_NAME = 'Super Admin';              // Change this!
+// ============================================
+
 async function main() {
     console.log('🔧 Creating Super Admin directly...\n');
 
@@ -17,7 +33,7 @@ async function main() {
             data: {
                 name: 'CA Firm Management',
                 email: 'info@cafirm.com',
-                phone: '+91-9876543210',
+                phone: '+91-0000000000',
                 address: '123 Business Street',
             },
         });
@@ -28,7 +44,7 @@ async function main() {
 
     // 2. Check if Super Admin exists
     const existingSuperAdmin = await prisma.superAdmin.findUnique({
-        where: { email: 'hemant.p10x.in' },
+        where: { email: SUPER_ADMIN_EMAIL },
     });
 
     if (existingSuperAdmin) {
@@ -38,7 +54,7 @@ async function main() {
         console.log(`   Password hash exists: ${!!existingSuperAdmin.password}`);
 
         // Update password to ensure it's correct
-        const hashedPassword = await bcrypt.hash('pandey3466@', 10);
+        const hashedPassword = await bcrypt.hash(SUPER_ADMIN_PASSWORD, 10);
         await prisma.superAdmin.update({
             where: { id: existingSuperAdmin.id },
             data: {
@@ -49,17 +65,17 @@ async function main() {
         console.log('✅ Password updated!');
     } else {
         console.log('👑 Creating new Super Admin...');
-        const hashedPassword = await bcrypt.hash('pandey3466@', 10);
+        const hashedPassword = await bcrypt.hash(SUPER_ADMIN_PASSWORD, 10);
 
         const superAdmin = await prisma.superAdmin.create({
             data: {
                 firmId: firm.id,
-                email: 'hemant.p10x.in',
+                email: SUPER_ADMIN_EMAIL,
                 password: hashedPassword,
-                name: 'Hemant Pandey',
+                name: SUPER_ADMIN_NAME,
                 isActive: true,
                 emailVerified: true,
-                mustChangePassword: false,
+                mustChangePassword: true,
                 twoFactorEnabled: false,
             },
         });
@@ -70,7 +86,7 @@ async function main() {
     // 3. Verify the user can be found
     console.log('\n🔍 Verifying user lookup...');
     const lookup = await prisma.superAdmin.findUnique({
-        where: { email: 'hemant.p10x.in' },
+        where: { email: SUPER_ADMIN_EMAIL },
     });
 
     if (lookup) {
@@ -80,8 +96,7 @@ async function main() {
         console.log(`   isActive: ${lookup.isActive}`);
 
         // Test password verification
-        const testPassword = 'pandey3466@';
-        const isPasswordValid = await bcrypt.compare(testPassword, lookup.password);
+        const isPasswordValid = await bcrypt.compare(SUPER_ADMIN_PASSWORD, lookup.password);
         console.log(`   Password valid: ${isPasswordValid}`);
     } else {
         console.log('❌ User NOT FOUND!');
@@ -89,8 +104,8 @@ async function main() {
 
     console.log('\n🎉 Done!\n');
     console.log('Login with:');
-    console.log('  Email: hemant.p10x.in');
-    console.log('  Password: pandey3466@');
+    console.log(`  Email: ${SUPER_ADMIN_EMAIL}`);
+    console.log('  Password: [Your configured password]');
 }
 
 main()

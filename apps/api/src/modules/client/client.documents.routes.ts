@@ -39,7 +39,7 @@ router.get('/documents/hierarchy', authenticate, requireClient, async (req: Auth
             orderBy: { uploadedAt: 'desc' },
         });
 
-        // NEW: Group documents by Category first, then by Document Type
+        // Group documents by Category first, then by Document Type
         // Structure: { category: { documentType: [documents] } }
         const categoryMap: { [category: string]: { [type: string]: any[] } } = {};
 
@@ -74,7 +74,7 @@ router.get('/documents/hierarchy', authenticate, requireClient, async (req: Auth
         const response = {
             myDocuments: {
                 title: 'My Documents',
-                categories,  // NEW: Include category-based grouping
+                categories,
                 users: documents.length > 0 ? [{
                     userId: clientId,
                     userName: clientInfo?.name || 'My Account',
@@ -320,7 +320,7 @@ router.post('/documents/upload', authenticate, requireClient, upload.single('fil
             return;
         }
 
-        const { documentType, category, description, customName } = req.body;  // NEW: also extract category and customName
+        const { documentType, category, description, customName } = req.body;
 
         // Save file to storage in client-specific folder
         await ensureUploadDirectories();
@@ -348,8 +348,8 @@ router.post('/documents/upload', authenticate, requireClient, upload.single('fil
                 fileSize: BigInt(req.file.size),
                 storagePath,
                 documentType: documentType || 'OTHER',
-                category: category || null,  // NEW: Save category
-                description: documentDescription,  // Store customName for OTHER types
+                category: category || null,
+                description: documentDescription,
                 status: 'PENDING',
             },
         });

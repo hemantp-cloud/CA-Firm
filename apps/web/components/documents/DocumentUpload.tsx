@@ -20,7 +20,7 @@ interface DocumentUploadProps {
   onUploadSuccess?: (document: any) => void
   serviceId?: string
   documentType?: string    // For slot-based upload: auto-set from slot
-  category?: string        // NEW: For slot-based upload: auto-set from slot
+  category?: string        // For slot-based upload: auto-set from slot
   className?: string
 }
 
@@ -41,12 +41,12 @@ export default function DocumentUpload({
   onUploadSuccess,
   serviceId,
   documentType: defaultDocumentType,
-  category: defaultCategory,   // NEW: category from slot
+  category: defaultCategory,
   className,
 }: DocumentUploadProps) {
   const [file, setFile] = useState<File | null>(null)
   const [documentType, setDocumentType] = useState<string>(defaultDocumentType || "")
-  const [category, setCategory] = useState<string>(defaultCategory || "")  // NEW: category state
+  const [category, setCategory] = useState<string>(defaultCategory || "")
   const [description, setDescription] = useState<string>("")
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -136,7 +136,7 @@ export default function DocumentUpload({
       const formData = new FormData()
       formData.append("file", file)
       formData.append("documentType", documentType)
-      if (category) formData.append("category", category)  // NEW: Send category
+      if (category) formData.append("category", category)
       if (serviceId) formData.append("serviceId", serviceId)
       if (description) formData.append("description", description)
 

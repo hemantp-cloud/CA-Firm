@@ -32,7 +32,7 @@ Thumbs.db
 *.swp
 *.swo
 
-# Uploads
+# Uploads (contains user documents - SENSITIVE!)
 uploads/
 
 # Coverage
@@ -45,4 +45,36 @@ coverage/
 # Backup folder with sensitive files
 _backup/
 
-_backup/
+# ============================================
+# DEBUG & ANALYSIS FILES (May contain PII)
+# ============================================
+# Database dumps and reports
+database-*.txt
+*-report.txt
+*-analysis*.txt
+users.txt
+firms.txt
+
+# TypeScript error logs
+tsc_errors.txt
+
+# Project structure dumps
+project_structure.txt
+
+# Any local testing/debug output
+*.local.*
+debug*.txt
+test-output*.txt
+
+# SQL files (may contain data)
+*.sql
+!apps/api/prisma/migrations/**/*.sql
+
+# ============================================
+# AI/CONTEXT FILES (Project development only)
+# ============================================
+**/LLM_*.md
+**/AI_*.md
+**/*_FOR_AI.md
+**/*_FOR_LLM.md
+**/CONTEXT_*.md

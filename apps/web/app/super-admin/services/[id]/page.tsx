@@ -40,7 +40,7 @@ import Link from "next/link"
 import api from "@/lib/api"
 import { toast } from "sonner"
 
-// Enhanced workflow components
+// Workflow components
 import StatusTimeline, { StatusBadge } from "@/components/services/StatusTimeline"
 import ServiceActionButtons from "@/components/services/ServiceActionButtons"
 import StatusHistoryList from "@/components/services/StatusHistoryList"
